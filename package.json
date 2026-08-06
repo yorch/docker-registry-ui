@@ -1,6 +1,6 @@
 {
   "name": "docker-registry-ui",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "type": "module",
   "scripts": {
     "format": "biome format --write .",
@@ -12,11 +12,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Joxit/docker-registry-ui.git"
+    "url": "https://github.com/yorch/docker-registry-ui.git"
   },
-  "author": "Jones Magloire (Joxit)",
+  "author": "Jorge Barnaby (yorch)",
   "license": "AGPL-3.0",
   "description": "A web UI for private docker registry",
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
     "@babel/core": "^7.20.7",
     "@babel/preset-env": "^7.20.2",
