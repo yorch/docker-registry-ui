@@ -95,27 +95,27 @@ Now you need to configure your docker client with these steps:
 
 Go to the keycloak home page: http://localhost/auth and click on `Administration Console`.
 
-![keycloak-home](https://raw.github.com/Joxit/docker-registry-ui/main/examples/token-auth-keycloak/images/01-keycloak-home.png)
+![keycloak-home](./images/01-keycloak-home.png)
 
 Sign in with your login and password (in my example it's `admin` and `password`).
 
-![keycloak-home](https://raw.github.com/Joxit/docker-registry-ui/main/examples/token-auth-keycloak/images/02-keycloak-signin.png)
+![keycloak-home](./images/02-keycloak-signin.png)
 
 Go to `Clients` in the left side menu.
 
-![keycloak-home](https://raw.github.com/Joxit/docker-registry-ui/main/examples/token-auth-keycloak/images/03-keycloak-to-clients.png)
+![keycloak-home](./images/03-keycloak-to-clients.png)
 
 Create a new client.
 
-![keycloak-home](https://raw.github.com/Joxit/docker-registry-ui/main/examples/token-auth-keycloak/images/04-keycloak-create-client.png)
+![keycloak-home](./images/04-keycloak-create-client.png)
 
 Enter a name for `Client ID`, choose `docker-v2` as the `Client Protocol`, and click `Save`.
 
-![keycloak-home](https://raw.github.com/Joxit/docker-registry-ui/main/examples/token-auth-keycloak/images/05-keycloak-new-client.png)
+![keycloak-home](./images/05-keycloak-new-client.png)
 
 Navigate to `Installation` tab, choose `Docker Compose YAML` as `Format Option` and click `Download`
 
-![keycloak-home](https://raw.github.com/Joxit/docker-registry-ui/main/examples/token-auth-keycloak/images/06-keycloak-download.png)
+![keycloak-home](./images/06-keycloak-download.png)
 
 When you extract the archive, the resulting directory should look like this.
 

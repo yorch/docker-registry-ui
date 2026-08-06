@@ -1,21 +1,17 @@
 #!/bin/sh
 
-for i in alpine chronograf:alpine consul debian jawg/mapnik3 nginx:alpine postgres:alpine redis:alpine telegraf:alpine joxit/docker-registry-ui joxit/kosmtik joxit/node joxit/rust-openssl joxit/tile-server-ui; do
+# Fills a local registry on 127.0.0.1:5000 with a varied catalog for manual testing.
+# Uses only public, vendor-neutral images.
+
+for i in alpine chronograf:alpine consul debian jawg/mapnik3 nginx:alpine postgres:alpine redis:alpine telegraf:alpine; do
   docker pull $i
   docker tag $i 127.0.0.1:5000/$i
   docker push 127.0.0.1:5000/$i
 done
 
-for i in arm64v8 arm32v7 master latest debian main; do
-  docker pull joxit/docker-registry-ui:$i
-  docker tag joxit/docker-registry-ui:$i 127.0.0.1:5000/joxit/docker-registry-ui:$i
-  docker push 127.0.0.1:5000/joxit/docker-registry-ui:$i
-done
-
-for v in 1.1 1.2 1.3 1.4 1.5 2.0 2 2.0.0 2.1 2.1.0 2.2 2.2.0 2.3 2.3.0 2.4 2.4.0 2.5.0; do
-  for type in "-debian" ""; do
-    docker pull joxit/docker-registry-ui:$v$type
-    docker tag joxit/docker-registry-ui:$v$type 127.0.0.1:5000/joxit/docker-registry-ui:$v$type
-    docker push 127.0.0.1:5000/joxit/docker-registry-ui:$v$type
-  done
+# A namespaced repository with many tags, to exercise catalog branching and the tag list.
+for v in 3.18 3.19 3.20 3.21 3.22 latest; do
+  docker pull alpine:$v
+  docker tag alpine:$v 127.0.0.1:5000/yorch/docker-registry-ui:$v
+  docker push 127.0.0.1:5000/yorch/docker-registry-ui:$v
 done
