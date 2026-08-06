@@ -12,7 +12,7 @@
 
 This fork is a modified version of the original project. The substantive differences:
 
-- **Modern SaaS redesign.** A header-bar application shell, card-based data tables, and light/dark themes replace the previous Material UI look. The `riot-mui` dependency (which upstream pinned to a fork commit) is gone, replaced by a dependency-free design system under `src/styles/` (`tokens.scss`, `base.scss`, `layout.scss`, `components.scss`). See [docs/UI-UX-REVAMP.md](./docs/UI-UX-REVAMP.md) for the design notes.
+- **Modern SaaS redesign.** A header-bar application shell, card-based data tables, and light/dark themes replace the previous Material UI look. The `riot-mui` dependency (which upstream pinned to a fork commit) is gone, replaced by a dependency-free design system under `src/styles/` (`tokens.scss`, `base.scss`, `layout.scss`, `components.scss`). See [docs/UI-UX-REVAMP.md](https://github.com/yorch/docker-registry-ui/blob/main/docs/UI-UX-REVAMP.md) for the design notes.
 - **Async tag counts in the catalog.** Tag-count badges are fetched in the background and fill in as each count resolves, instead of blocking the catalog render.
 - **Images are published to GHCR**, not Docker Hub. Pull from `ghcr.io/yorch/docker-registry-ui` instead of `joxit/docker-registry-ui`.
 - **Biome replaces Prettier** for formatting and linting.
@@ -44,7 +44,7 @@ Images are published to [`ghcr.io/yorch/docker-registry-ui`](https://github.com/
 docker pull ghcr.io/yorch/docker-registry-ui:latest
 ```
 
-## [Project Page](https://yorch.github.io/docker-registry-ui), [Live Demo](https://yorch.github.io/docker-registry-ui/demo/), [Examples](./examples)
+## [Project Page](https://yorch.github.io/docker-registry-ui), [Live Demo](https://yorch.github.io/docker-registry-ui/demo/), [Examples](https://github.com/yorch/docker-registry-ui/tree/main/examples)
 
 ![preview](./screenshot.png "Preview of Docker Registry UI")
 
@@ -88,7 +88,7 @@ Checkout all options in [Available options](#available-options) section.
 -   Why OPTIONS (aka preflight requests) and DELETE fails with 401 status code (using Basic Auth) or why the UI says to check my `Access-Control-Allow-Origin` ?
     -   This is caused by a bug in docker registry, it returns 401 status requests on preflight requests, this breaks [W3C preflight-request specification](https://www.w3.org/TR/cors/#preflight-request). The docker registry maintainers have stated this will never be fixed ([distribution/distribution#4458](https://github.com/distribution/distribution/issues/4458)). It is suggested to have your UI on the same domain than your registry e.g. registry.example.com/ui/ **or** use `NGINX_PROXY_PASS_URL` **or** configure a nginx/apache/haproxy in front of your registry that returns 200 on each OPTIONS requests. (see [#104](https://github.com/Joxit/docker-registry-ui/issues/104), [#204](https://github.com/Joxit/docker-registry-ui/issues/204), [#207](https://github.com/Joxit/docker-registry-ui/issues/207), [#214](https://github.com/Joxit/docker-registry-ui/issues/214), [#266](https://github.com/Joxit/docker-registry-ui/issues/266), [#278](https://github.com/Joxit/docker-registry-ui/issues/278)).
 -   Can I use the docker registry ui as a standalone application (with Electron) ?
-    -   Yes, check out the example [here](./examples/electron). (see [#129](https://github.com/Joxit/docker-registry-ui/pull/129))
+    -   Yes, check out the example [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/electron). (see [#129](https://github.com/Joxit/docker-registry-ui/pull/129))
 -   I deleted images through the UI, but they are still present on the server. How can I delete them?
     - When you delete an image with the UI, only the reference is deleted and not the content. To remove dangling images, you need to run the garbage collector of the registry with the command `registry garbage-collect config.yml` or `docker exec registry registry garbage-collect config.yml`. (see [#77](https://github.com/Joxit/docker-registry-ui/issues/77), [#147](https://github.com/Joxit/docker-registry-ui/issues/147))
 -   Why when I delete one tag, all tags with the same SHA are deleted ?
@@ -104,7 +104,7 @@ Checkout all options in [Available options](#available-options) section.
 -   I'm using `NGINX_PROXY_PASS_URL`, my registry server has been recreated and the UI cannot connect with the message `[error] 176#176: *2 connect() failed (111: Connection refused) while connecting to upstream`, what can I do?
     - Nginx get the IP of all addresses only once at runtime, since your container has been recreated, its IP changed too. To prevent this kind of issue, you may use the option `NGINX_RESOLVER` and set to `127.0.0.11`.
 
-Need more informations ? Try the [examples](./examples) or open an issue.
+Need more informations ? Try the [examples](https://github.com/yorch/docker-registry-ui/tree/main/examples) or open an issue.
 
 ## Available options
 
@@ -138,7 +138,7 @@ Some env options are available for use this interface for **only one server** (w
 - `TAGLIST_PAGE_SIZE`: Set the number of tags to display in one page. (default: `100`). Since 2.5.0
 - `REGISTRY_SECURED`: By default, the UI will check on every requests if your registry is secured or not (you will see `401` responses in your console). Set to `true` if your registry uses Basic Authentication and divide by two the number of call to your registry. (default `false`). Since 2.5.0
 - `SHOW_TAG_HISTORY`: Whether to show the tag history feature or not. Allows to simplify the user interface by hiding it form the tag list if set to `false`. (default: `true`).
-There are some examples with [docker-compose](https://docs.docker.com/compose/) and docker-registry-ui as proxy [here](./examples/ui-as-proxy/) or docker-registry-ui as standalone [here](./examples/ui-as-standalone/).
+There are some examples with [docker-compose](https://docs.docker.com/compose/) and docker-registry-ui as proxy [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-proxy/) or docker-registry-ui as standalone [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-standalone/).
 - `DOCKER_REGISTRY_UI_TITLE`: Set a custom title displayed in the header bar. (default: `Docker Registry UI`).
 - `ENABLE_VERSION_NOTIFICATION`: Display notification when a new version of Docker Registry UI is available. This is a weekly check. (default: `true`).
 
@@ -286,24 +286,24 @@ auth:
 ## Standalone Application
 
 If you do not want to install the docker-registry-ui on your server, you may
-check out the [Electron](examples/electron/README.md) standalone application (not updated).
+check out the [Electron](https://github.com/yorch/docker-registry-ui/blob/main/examples/electron/README.md) standalone application (not updated).
 
 ## All examples
 
-- [Use docker-registry-ui as a proxy (use REGISTRY_URL)](./examples/ui-as-proxy)
-- [Use docker-registry-ui as standalone (use URL)](./examples/ui-as-standalone)
-- [Use docker-registry-ui with traefik](./examples/traefik)
-- [Add custom headers bases on environment variable and/or file when the ui is used as proxy](./examples/proxy-headers) ([#89](https://github.com/Joxit/docker-registry-ui/pull/89))
-- [Electron-based Standalone Application](./examples/electron) ([#129](https://github.com/Joxit/docker-registry-ui/pull/129))
-- [Use docker-registry-ui as proxy with read-only right](./examples/read-only-auth) ([#47](https://github.com/Joxit/docker-registry-ui/issues/47))
-- [Use docker-registry-ui on Kubernetes](./examples/kubernetes)
-- [Use docker-registry-ui with token authentication via Keycloak](./examples/token-auth-keycloak)
-- [Populate a local registry with test data](./examples/populate-registry)
+- [Use docker-registry-ui as a proxy (use REGISTRY_URL)](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-proxy)
+- [Use docker-registry-ui as standalone (use URL)](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-standalone)
+- [Use docker-registry-ui with traefik](https://github.com/yorch/docker-registry-ui/tree/main/examples/traefik)
+- [Add custom headers bases on environment variable and/or file when the ui is used as proxy](https://github.com/yorch/docker-registry-ui/tree/main/examples/proxy-headers) ([#89](https://github.com/Joxit/docker-registry-ui/pull/89))
+- [Electron-based Standalone Application](https://github.com/yorch/docker-registry-ui/tree/main/examples/electron) ([#129](https://github.com/Joxit/docker-registry-ui/pull/129))
+- [Use docker-registry-ui as proxy with read-only right](https://github.com/yorch/docker-registry-ui/tree/main/examples/read-only-auth) ([#47](https://github.com/Joxit/docker-registry-ui/issues/47))
+- [Use docker-registry-ui on Kubernetes](https://github.com/yorch/docker-registry-ui/tree/main/examples/kubernetes)
+- [Use docker-registry-ui with token authentication via Keycloak](https://github.com/yorch/docker-registry-ui/tree/main/examples/token-auth-keycloak)
+- [Populate a local registry with test data](https://github.com/yorch/docker-registry-ui/tree/main/examples/populate-registry)
 
 ## Development
 
-See [CLAUDE.md](./CLAUDE.md) for build, test, and formatting commands, and
-[CONTRIBUTING.md](./CONTRIBUTING.md) before opening an issue or pull request.
+See [CLAUDE.md](https://github.com/yorch/docker-registry-ui/blob/main/CLAUDE.md) for build, test, and formatting commands, and
+[CONTRIBUTING.md](https://github.com/yorch/docker-registry-ui/blob/main/CONTRIBUTING.md) before opening an issue or pull request.
 
 ## License
 
