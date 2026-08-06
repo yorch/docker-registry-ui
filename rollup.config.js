@@ -90,7 +90,7 @@ export default [
           return useServe ? applyDevConfig(markup, serveConfig) : markup;
         },
       }),
-      checkOutput(output)
+      checkOutput(output),
     ),
   },
 ];

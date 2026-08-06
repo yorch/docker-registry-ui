@@ -42,7 +42,7 @@ export const getBranching = (min = 1, max = 1) => {
   } else if (max < 0 || min < 0) {
     throw new DockerRegistryUIError(
       `min and max must be greater than equals to 0 (min: ${min} >= 0 and max: ${max} >= 0)`,
-      ERROR_CODE
+      ERROR_CODE,
     );
   }
   if (max == 1) {
