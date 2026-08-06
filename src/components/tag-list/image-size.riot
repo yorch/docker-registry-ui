@@ -25,10 +25,17 @@
       onUpdated(props, state) {
         this.load(props, state);
       },
+      // Runs on every render. The size guard alone does not hold while the
+      // manifest is still in flight, so each re-render used to add another
+      // 'size' listener. Each is a distinct closure, so the observable's Set
+      // cannot collapse them and every one fires its own update() once the
+      // size lands. Subscribe once per image instead; `each` reuses these
+      // components across rows, so the guard is keyed on the image itself.
       load(props, state) {
-        if (typeof props.image.size === 'number') {
+        if (typeof props.image.size === 'number' || state.subscribedTo === props.image) {
           return;
         }
+        state.subscribedTo = props.image;
         props.image.on('size', (size) => {
           this.update({
             size,
