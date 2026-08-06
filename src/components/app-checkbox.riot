@@ -4,7 +4,7 @@
       type="checkbox"
       checked="{ props.checked }"
       disabled="{ props.disabled }"
-      onchange="{ onChange }"
+      onclick="{ onChange }"
       aria-label="{ props.ariaLabel }"
     />
     <span class="checkbox-box">
@@ -37,6 +37,13 @@
           input.indeterminate = this.state.indeterminate;
         }
       },
+      // Bound to `click`, not `change`: consumers read `altKey`/`shiftKey` off
+      // this event to drive select-all and range selection, and those only
+      // exist on MouseEvent. A `change` event is a plain Event, so the
+      // modifiers would always read as undefined. The browser toggles
+      // checkedness before dispatching click, so `event.target.checked` is
+      // still the post-click value, and keyboard activation synthesises a
+      // click too.
       onChange(event) {
         if (this.props.onChange) {
           this.props.onChange(event);

@@ -188,7 +188,10 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       },
       onRemoveImageHeaderChange(event) {
         if (event.altKey === true) {
-          const tags = getPage(this.props.tags, this.props.page);
+          // `this.getPage`, not the bare import: it applies tagsPerPage and the
+          // active sort, so this selects exactly the rows on screen. The import
+          // defaults to a page size of 100 and would select across pages.
+          const tags = this.getPage(this.props.tags, this.props.page);
           tags
             .filter((image) => matchSearch(this.props.filterResults, image.tag))
             .forEach((tag) => this.state.toDelete.add(tag));
