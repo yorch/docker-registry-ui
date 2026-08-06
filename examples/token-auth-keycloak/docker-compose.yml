@@ -22,7 +22,7 @@ services:
       - registry-ui-net
 
   ui:
-    image: joxit/docker-registry-ui
+    image: ghcr.io/yorch/docker-registry-ui
     environment:
       REGISTRY_TITLE: My Private Docker Registry
       REGISTRY_URL: http://localhost

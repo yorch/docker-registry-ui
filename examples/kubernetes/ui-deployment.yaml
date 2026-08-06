@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: registry-ui
-          image: "docker.io/joxit/docker-registry-ui:static"
+          image: "ghcr.io/yorch/docker-registry-ui:static"
           imagePullPolicy: Always
           env:
             - name: REGISTRY_TITLE
