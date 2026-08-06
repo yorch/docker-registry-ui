@@ -63,7 +63,7 @@ its own thing.
 
 ### B. CI/CD on GHCR
 
-Three workflows, all replaced.
+Four workflows: three replaced, one new (`pages.yml`, specified in §G).
 
 **`ci.yml`** — triggers: `pull_request`, `push` to branches other than `main`.
 `setup-node@v4` (node 24, npm cache) → `npm ci` → `biome ci` → `npm test` → `npm run build`
@@ -123,6 +123,11 @@ RUN chown -R nginx:nginx ...
 ```
 
 - `dist/` is `git rm -r --cached`'d and added to `.gitignore`.
+- The `dist/** linguist-generated=true -diff -merge` stanza in `.gitattributes` is **removed**, along with its
+  "Do not untrack it" comment block. That directive existed because GitHub Pages served the repo as-is and
+  `demo/index.html` loaded `../dist/docker-registry-ui.js` from the committed bundle. §G replaces that with a
+  Pages deployment built by GitHub Actions, which removes the reason. `.gitattributes` is deleted if the stanza
+  was its only content.
 - `.dockerignore` rewritten: deny `dist`, allow `src`, `rollup`, `rollup.config.js`, `package.json`,
   `package-lock.json`, `bin`, `nginx`, `favicon.ico`.
 - Delete `arm32v7.dockerfile` and `arm64v8.dockerfile` — referenced by no workflow, doc, or example.
@@ -159,10 +164,13 @@ populated local registry (`examples/populate-registry` provides one) — an expl
 an assumption.
 - `examples/issue-20`, `examples/issue-73`, `examples/issue-75`, `examples/issue-88`, `examples/issue-116`,
   `examples/pr-219` — all named after upstream issue numbers and meaningless here
+- `examples/helm/` — a single stub README pointing at upstream's chart repo (`helm.joxit.dev`); contains no
+  actual chart
 
-Keep: `examples/{ui-as-proxy,ui-as-standalone,traefik,kubernetes,helm,read-only-auth,proxy-headers,
-token-auth-keycloak,populate-registry,electron}`, updating any `joxit/docker-registry-ui` image references to
-`ghcr.io/yorch/docker-registry-ui`.
+Keep: `examples/{ui-as-proxy,ui-as-standalone,traefik,kubernetes,read-only-auth,proxy-headers,
+token-auth-keycloak,populate-registry,electron}`, updating every `joxit/docker-registry-ui` **deployment** image
+reference to `ghcr.io/yorch/docker-registry-ui`. The `populate.sh` scripts also use `joxit/docker-registry-ui`
+as arbitrary *sample data* pushed into a throwaway registry — those are renamed too, for consistency.
 
 Rewrite `CONTRIBUTING.md` down to a short note: personal fork, issues/PRs welcome but no guarantees, link
 upstream for the original project.
@@ -178,16 +186,35 @@ Kept, not deleted. `_config.yml` rewritten:
 
 `index.md` symlink to `README.md` is kept — that is what renders the Pages landing page.
 
+**Pages is deployed by GitHub Actions, not from a branch.** New `pages.yml` workflow, triggered on push to
+`main` and `workflow_dispatch`:
+
+1. `npm ci && npm run build` → produces `dist/`
+2. `actions/jekyll-build-pages@v1` → renders `index.md` + `_config.yml` into `_site/`
+3. Copy the freshly-built `dist/` and `demo/` into `_site/` so `demo/index.html`'s relative
+   `../dist/docker-registry-ui.js` and `../dist/docker-registry-ui.css` resolve
+4. `actions/upload-pages-artifact@v3` → `actions/deploy-pages@v4`
+
+Permissions: `pages: write`, `id-token: write`, `contents: read`. Concurrency group `pages`.
+
+This is what makes untracking `dist/` (§D) safe: the bundle the demo loads is built at deploy time instead of
+being committed.
+
 `demo/index.html` rewritten:
 - Copyright header keeps Joxit's line and adds ours
-- OG/canonical/twitter meta → this repo
+- OG/canonical/twitter meta → this repo; `twitter:site` / `twitter:creator` removed
 - **`default-registries` no longer points at `https://joxit.dev/docker-registry-demo`.** The demo ships with no
   default registry; the visitor enters one. Hosting our own demo registry is possible future work, explicitly
   out of scope here.
-- The `raw.githubusercontent.com/Joxit/...` fallback reference is removed
+- The `<script>` block that rewrites `localStorage.registryServer` from the
+  `raw.githubusercontent.com/Joxit/...` URL is removed entirely — it is an upstream migration shim
+- **The inline Google Analytics `<script>` block (`ga('create', 'G-T158HYBVZ2', 'auto')`) is removed.** This is
+  separate from the `_config.yml` `google_analytics` key and would otherwise keep reporting to upstream's
+  property even after that key is deleted.
 
-Pages is currently disabled on the repo. Enabling it is a manual, post-merge step for the owner; nothing in this
-work depends on it being on.
+Pages is currently disabled on the repo. Enabling it — and setting **Settings → Pages → Source = GitHub
+Actions** — is a manual, post-merge step for the owner. Nothing in the build or the container image depends on
+it.
 
 ### H. Documentation
 
@@ -240,7 +267,7 @@ One branch, one PR, atomic commits in this order:
 1. `chore: untrack dist/ and commit package-lock.json`
 2. `build: replace Prettier with Biome`
 3. `build: multi-stage Docker builds, drop unused arm dockerfiles`
-4. `ci: publish to GHCR, modernize workflows`
+4. `ci: publish to GHCR, modernize workflows, build Pages from Actions`
 5. `chore: repoint project metadata and copyright to this fork`
 6. `fix: point version notification and in-app links at this fork`
 7. `chore: prune upstream-specific files and examples`
