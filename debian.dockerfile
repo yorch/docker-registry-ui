@@ -12,9 +12,23 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+FROM node:24-alpine AS build
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY rollup.config.js ./
+COPY rollup/ ./rollup/
+COPY src/ ./src/
+RUN npm run build
+
 FROM nginx:latest
 
-LABEL maintainer="Jones MAGLOIRE @Joxit"
+LABEL maintainer="Jorge Barnaby (yorch)"
+LABEL org.opencontainers.image.title="Docker Registry UI"
+LABEL org.opencontainers.image.description="A web UI for private docker registry"
+LABEL org.opencontainers.image.source="https://github.com/yorch/docker-registry-ui"
+LABEL org.opencontainers.image.licenses="AGPL-3.0"
 
 WORKDIR /usr/share/nginx/html/
 
@@ -24,7 +38,7 @@ ENV SHOW_CATALOG_NB_TAGS 'false'
 
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY bin/90-docker-registry-ui.sh /docker-entrypoint.d/90-docker-registry-ui.sh
-COPY dist/ /usr/share/nginx/html/
+COPY --from=build /app/dist/ /usr/share/nginx/html/
 COPY favicon.ico /usr/share/nginx/html/
 
 RUN chown -R nginx:nginx /etc/nginx/ /usr/share/nginx/html/ /var/cache/nginx /var/log/nginx
