@@ -1,6 +1,5 @@
 .project
 node_modules
-package-lock.json
 registry-data
 .idea
 _site
@@ -8,3 +7,4 @@ _site
 .serve/
 demo/v2
 .version.json
+dist
