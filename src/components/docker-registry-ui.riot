@@ -72,6 +72,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
               registry-name="{ state.name }"
               catalog-elements-limit="{ state.catalogElementsLimit }"
               on-notify="{ notifySnackbar }"
+              on-clear-page-error="{ clearPageError }"
               filter-results="{ state.filter }"
               on-authentication="{ onAuthentication }"
               show-catalog-nb-tags="{ falsy(props.showCatalogNbTags) }"
@@ -224,11 +225,23 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           this.update({
             pageError: message,
           });
-          setTimeout(() => delete this.state['pageError'], 1000);
         } else if (message && message.message) {
           this.update({
             snackbarMessage: message.message,
             snackbarIsError: message.isError,
+          });
+        }
+      },
+      // Page-level errors are configuration faults -- an unreachable catalog, a
+      // mixed-content or malformed registry URL -- that do not resolve on their
+      // own, so the diagnostic stays up until the app actually retries. It used
+      // to be dropped from the state on a timer without a re-render, which left
+      // the state and the DOM disagreeing: the page stayed visible until some
+      // unrelated update happened to remove it.
+      clearPageError() {
+        if (this.state.pageError) {
+          this.update({
+            pageError: undefined,
           });
         }
       },
