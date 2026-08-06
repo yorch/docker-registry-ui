@@ -1,0 +1,3 @@
+{
+  "node-option": ["import=./test/setup/register.js"]
+}

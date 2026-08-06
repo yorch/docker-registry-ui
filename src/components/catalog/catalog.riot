@@ -185,6 +185,11 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           return;
         }
         state.registryUrl = props.registryUrl;
+        // Loading a different registry supersedes whatever page-level error the
+        // previous one produced.
+        if (props.onClearPageError) {
+          props.onClearPageError();
+        }
         this.cancelPendingCounts();
         let repositories = [];
         let nImages = 0;

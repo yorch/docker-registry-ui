@@ -17,6 +17,14 @@
         } else if (props.image.blobs) {
           return this.onBlobs(props.image.blobs, props, state);
         }
+        // state.image is only assigned once a response lands, so the onUpdated
+        // guard above does not hold while the manifest is in flight and every
+        // re-render used to add another pair of listeners. Track the
+        // subscription separately so it happens once per image.
+        if (state.subscribedTo === props.image) {
+          return;
+        }
+        state.subscribedTo = props.image;
         props.image.on('blobs', (blobs) => this.onBlobs(blobs, props, state));
         props.image.on('list', (list) => this.onList(list, props, state));
       },

@@ -118,7 +118,7 @@ export function getNumPages(elts, limit) {
   if (!elts) {
     return 0;
   }
-  return Math.trunc(elts.length / limit) + 1;
+  return Math.max(1, Math.ceil(elts.length / limit));
 }
 
 export function getPageLabels(page, nPages) {
