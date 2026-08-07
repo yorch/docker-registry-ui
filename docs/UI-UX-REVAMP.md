@@ -217,7 +217,7 @@ Ordered by dependency (each step ends green: `npm run build`, `npm test`, `npm r
 ## 9. Verification / quality gates
 - `npm test` (mocha) — existing unit tests must stay green (utils, taglist-order, repositories, docker-image).
 - `npm run build` (rollup) — clean build of `dist/`.
-- `npm run format` (prettier) — no formatting drift.
+- `npx biome ci .` — no formatting or lint drift.
 - Manual: `npm start` → http://localhost:8000 with the dev registry; walk catalog → tag list (sort, copy, multi-delete) → history (arch tabs, dockerfile); toggle light/dark; test `?url=`, read-only registries, `SINGLE_REGISTRY=true`.
 - New unit tests: theme token emission (light/dark + `THEME_*` override mapping to legacy+M3), breadcrumb/label helpers if extracted as pure functions.
 - Screenshots updated in README/demo.
@@ -248,6 +248,6 @@ Ordered by dependency (each step ends green: `npm run build`, `npm test`, `npm r
 ### Remaining / known gaps
 - `screenshot.png` and `docker-registry-ui.gif` in the repo root still show the old design — regenerate with a browser once the UI is visually reviewed.
 - Visual QA in a real browser (light/dark, sidebar behavior on mobile, catalog expand, multi-delete, history tabs, registry switch/add/remove) not yet performed by a human.
-- Prettier is intentionally not clean on `.riot` files (its HTML parser mangles riot attribute expressions) — pre-existing repo condition.
-- `dist/` rebuilds drift slightly (riot compiler `expr` counters) — pre-existing toolchain quirk; Docker copies the committed `dist/`.
+- The formatter is intentionally not run over `.riot` files (an HTML parser mangles riot attribute expressions) — `biome.json` excludes them.
+- `dist/` rebuilds drift slightly (riot compiler `expr` counters) — pre-existing toolchain quirk, and harmless now that `dist/` is not committed: the Docker images and the Pages workflow each build their own.
 - The `THEME_HEADER_*` / `THEME_FOOTER_*` env vars are now legacy aliases (kept for compatibility, no longer affect the layout).
