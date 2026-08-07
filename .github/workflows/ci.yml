@@ -20,3 +20,18 @@ jobs:
       - run: npm run build
         env:
           DEVELOPMENT_BUILD: ${{ github.sha }}
+
+  # Kept separate from `test` so a browser failure is distinguishable at a
+  # glance from a unit failure, and so the fast suite still reports when the
+  # browser download or the dev server is what broke.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

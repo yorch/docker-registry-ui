@@ -34,10 +34,17 @@ Copyright (C) 2016-2023 Jones Magloire @Joxit
       onUpdated(props, state) {
         this.load(props, state);
       },
+      // Runs on every render, so it has to recognise a digest that has already
+      // been resolved. Testing it for truthiness could not tell a pending digest
+      // from one that failed, and because `state.chars` is reset below, a failed
+      // digest drove an unbounded loop: get-content-digest re-emits the resolved
+      // value, the callback asks for the width, the width differs from the reset
+      // -1 and triggers a render, and the render asks again.
       load(props, state) {
-        if (props.image.contentDigest) {
+        if (props.image.contentDigest !== undefined || state.subscribedTo === props.image) {
           return;
         }
+        state.subscribedTo = props.image;
         state.chars = -1;
         props.image.one('content-digest', (contentDigest) => {
           this.contentDigest = contentDigest;

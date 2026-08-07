@@ -10,3 +10,6 @@
 - [Add custom headers bases on environment variable and/or file when the ui is used as proxy](https://github.com/yorch/docker-registry-ui/tree/main/examples/proxy-headers) ([#89](https://github.com/Joxit/docker-registry-ui/pull/89))
 - [Electron-based Standalone Application](https://github.com/yorch/docker-registry-ui/tree/main/examples/electron) ([#129](https://github.com/Joxit/docker-registry-ui/pull/129))
 - [Use docker-registry-ui as proxy with read-only right](https://github.com/yorch/docker-registry-ui/tree/main/examples/read-only-auth) ([#47](https://github.com/Joxit/docker-registry-ui/issues/47))
+- [Use docker-registry-ui on Kubernetes](https://github.com/yorch/docker-registry-ui/tree/main/examples/kubernetes)
+- [Use docker-registry-ui with token authentication via Keycloak](https://github.com/yorch/docker-registry-ui/tree/main/examples/token-auth-keycloak)
+- [Populate a local registry with test data](https://github.com/yorch/docker-registry-ui/tree/main/examples/populate-registry)

@@ -1,5 +1,12 @@
 .project
 node_modules
+# Git worktrees are created here. Each is a whole second checkout of this
+# repository carrying its own biome.json, and Biome reads .gitignore
+# (vcs.useIgnoreFile), so without this entry `biome ci .` from the repository
+# root finds that nested config and refuses to run.
+# Only this subdirectory: the rest of .claude/ is project configuration and is
+# meant to be committed.
+.claude/worktrees/
 registry-data
 .idea
 _site
