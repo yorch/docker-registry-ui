@@ -30,5 +30,6 @@ globalThis.MouseEvent = dom.window.MouseEvent;
 globalThis.CustomEvent = dom.window.CustomEvent;
 globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
+globalThis.XMLHttpRequest = dom.window.XMLHttpRequest;
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);

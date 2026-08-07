@@ -26,6 +26,10 @@ export class Http {
     this._headers = {};
     this.onAuthentication = opts && opts.onAuthentication;
     this.withCredentials = opts && opts.withCredentials;
+    // Opt out for requests that must see the registry as it is right now. The
+    // delete flow reads Docker-Content-Digest from a tag-addressed manifest and
+    // then deletes by that digest, so a stale one deletes the wrong manifest.
+    this.noCache = Boolean(opts && opts.noCache);
   }
 
   getContentDigest(cb) {
@@ -127,12 +131,37 @@ export class Http {
   }
 
   send() {
-    const cache = getFromCache(this._method, this._url);
-    if (cache && cache.responseText) {
-      this.cache = cache;
-      return this._events['loadend'].bind({ status: 200, responseText: cache.responseText })();
+    if (!this.noCache) {
+      const cache = getFromCache(this._method, this._url);
+      if (cache && cache.responseText) {
+        this.cache = cache;
+        return this.replayFromCache(cache);
+      }
     }
     this.oReq.send();
+  }
+
+  // A real 200 fires `load` and then `loadend`. Replaying only `loadend` works
+  // by accident for consumers that happen to parse there, and silently drops
+  // the response for anyone parsing in `load` -- tag-list renders an empty
+  // table, with no error to explain it.
+  replayFromCache(cache) {
+    const response = {
+      status: 200,
+      responseText: cache.responseText,
+      withCredentials: this.withCredentials,
+      _url: this._url,
+      getResponseHeader: (header) =>
+        /^docker-content-digest$/i.test(header) ? cache.dockerContentdigest || null : null,
+      hasHeader: (header) => /^docker-content-digest$/i.test(header) && Boolean(cache.dockerContentdigest),
+      getErrorMessage,
+    };
+    ['load', 'loadend'].forEach((name) => {
+      const handler = this._events[name];
+      if (handler) {
+        handler.bind(response)();
+      }
+    });
   }
 }
 
