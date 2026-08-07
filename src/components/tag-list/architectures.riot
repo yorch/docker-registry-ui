@@ -1,8 +1,18 @@
 <architectures>
+  <div if="{ !state.architectures }" class="placeholder" title="{ placeholderTitle(state) }">
+    { placeholder(state) }
+  </div>
   <div class="architecture" each="{ architecture in state.architectures }">{ architecture }</div>
   <script>
     import { platformToString } from '../../scripts/docker-image';
+    import { PENDING_LABEL, UNAVAILABLE_LABEL } from '../../scripts/utils';
     export default {
+      placeholder(state) {
+        return state.failed ? UNAVAILABLE_LABEL : PENDING_LABEL;
+      },
+      placeholderTitle(state) {
+        return state.failed ? 'Architecture unavailable' : 'Loading architecture…';
+      },
       onMounted(props, state) {
         this.onLoad(props, state);
       },
@@ -29,12 +39,20 @@
         props.image.on('list', (list) => this.onList(list, props, state));
       },
       onBlobs(blobs, props, state) {
+        // platformToString(null) answers 'unknown', which would read as a real
+        // architecture rather than as a fetch that failed.
+        if (!blobs) {
+          return this.update({ architectures: undefined, failed: true, image: props.image });
+        }
         const architectures = [platformToString(blobs)];
         if (!props.image.manifests) {
           this.update({ architectures, image: props.image });
         }
       },
       onList(list, props, state) {
+        if (!list) {
+          return this.update({ architectures: undefined, failed: true, image: props.image });
+        }
         const architectures = list.map(({ platform }) => platformToString(platform));
         this.update({ architectures, image: props.image });
       },

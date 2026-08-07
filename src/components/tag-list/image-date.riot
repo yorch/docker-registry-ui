@@ -17,27 +17,47 @@
 <image-date>
   <div title="Creation date { getLocalDate(props.image) }">{ getDate(props.image) }</div>
   <script>
-    import { dateFormat } from '../../scripts/utils';
+    import { dateFormat, PENDING_LABEL, UNAVAILABLE_LABEL } from '../../scripts/utils';
     export default {
-      onMounted(props) {
-        this.loadCreationDate(props);
+      onMounted(props, state) {
+        this.loadCreationDate(props, state);
       },
-      onUpdated(props) {
-        this.loadCreationDate(props);
+      onUpdated(props, state) {
+        this.loadCreationDate(props, state);
       },
-      loadCreationDate(props) {
-        if (!props.image.creationDate && !props.image.ociImage) {
-          props.image.one('creation-date', (date) => {
-            this.update({
-              date: date,
-              localDate: date && date.toLocaleString(),
-            });
-          });
-          props.image.trigger('get-date');
+      // Runs on every render, so it has to recognise a date that has already
+      // been resolved. Testing the date for truthiness could not tell a pending
+      // date from one that failed, and a failed date sent this into unbounded
+      // recursion: `get-date` answers a non-undefined date by re-emitting
+      // `creation-date`, which updates this component, which asks again.
+      loadCreationDate(props, state) {
+        if (props.image.ociImage || props.image.creationDate !== undefined) {
+          return;
         }
+        if (state.subscribedTo === props.image) {
+          return;
+        }
+        state.subscribedTo = props.image;
+        props.image.one('creation-date', (date) => {
+          this.update({
+            date: date,
+            localDate: date && date.toLocaleString(),
+          });
+        });
+        props.image.trigger('get-date');
       },
       getDate(image) {
-        return !image.ociImage ? `${dateFormat(image.creationDate)} ago` : 'Not Available';
+        if (image.ociImage) {
+          return 'Not Available';
+        }
+        if (image.creationDate === null) {
+          return UNAVAILABLE_LABEL;
+        }
+        // Interpolating an absent date left a bare " ago" sitting in the column.
+        if (image.creationDate === undefined) {
+          return PENDING_LABEL;
+        }
+        return `${dateFormat(image.creationDate)} ago`;
       },
       getLocalDate(image) {
         return !image.ociImage
