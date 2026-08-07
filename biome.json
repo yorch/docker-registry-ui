@@ -7,7 +7,6 @@
       "**/*.json",
       "!**/*.riot",
       "!src/index.html",
-      "!demo/**",
       "!dist/**",
       "!.serve/**",
       "!node_modules/**",

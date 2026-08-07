@@ -18,7 +18,7 @@ This fork is a modified version of the original project. The substantive differe
 - **Registry request caching and bounded fan-out.** Tag lists and tag-addressed manifests are now cached for 30 seconds (`MUTABLE_TTL_MS` in `src/scripts/cache-request.js`), in addition to the existing indefinite cache for digest-addressed blobs and manifests. Requests are bounded to 6 concurrent (`MAX_CONCURRENT_REQUESTS` in `src/scripts/request-pool.js`) instead of firing all at once — on a 100-tag catalog, peak concurrent requests drops from about 101 to about 7. Tag-list cells distinguish a pending fetch from a failed one instead of appearing to load forever, and the delete flow opts out of the cache, since it reads a content digest and then deletes by it.
 - **Images are published to GHCR**, not Docker Hub. Pull from `ghcr.io/yorch/docker-registry-ui` instead of `joxit/docker-registry-ui`.
 - **Biome replaces Prettier** for formatting and linting.
-- **Multi-stage Docker builds**, and `dist/` is no longer committed to the repository. The images build the bundle themselves; the GitHub Pages workflow builds it at deploy time for the demo.
+- **Multi-stage Docker builds**, and `dist/` is no longer committed to the repository. The images build the bundle themselves.
 - **Build platforms are narrowed to `linux/amd64` and `linux/arm64`.** Upstream additionally published `arm/v6`, `arm/v7`, `ppc64le`, `s390x` and similar; those were deliberately dropped here.
 
 ## Overview
@@ -46,7 +46,7 @@ Images are published to [`ghcr.io/yorch/docker-registry-ui`](https://github.com/
 docker pull ghcr.io/yorch/docker-registry-ui:latest
 ```
 
-## [Project Page](https://yorch.github.io/docker-registry-ui), [Live Demo](https://yorch.github.io/docker-registry-ui/demo/), [Examples](https://github.com/yorch/docker-registry-ui/tree/main/examples)
+## [Project Page](https://yorch.github.io/docker-registry-ui), [Examples](https://github.com/yorch/docker-registry-ui/tree/main/examples)
 
 ![preview](./screenshot.png "Preview of Docker Registry UI")
 
@@ -58,8 +58,8 @@ docker pull ghcr.io/yorch/docker-registry-ui:latest
   - Select all contigous tags between two tags with `Shift + Click` on the first tag then `Shift + Click` on the second tag (see [#287](https://github.com/Joxit/docker-registry-ui/pull/287)). Since 2.4.0
 - Show sha256 for specific tag (hover image tag).
 - Sort the tag list with number compatibility (see [#45](https://github.com/Joxit/docker-registry-ui/pull/45) and [#46](https://github.com/Joxit/docker-registry-ui/pull/46)). Since 0.4.0
-- Share your docker registry UI without installation or when you are deploying a UI with  `SINGLE_REGISTRY=false`.
-  - Use the public demo and the query parameter `url` (e.g. `https://yorch.github.io/docker-registry-ui/demo?url=https://registry.example.com`). If you need credentials on your private registry, you must set the `Access-Control-Allow-Origin` to `https://yorch.github.io`.
+- Share your docker registry UI when you are deploying a UI with `SINGLE_REGISTRY=false`.
+  - Point any deployed instance at a registry with the `url` query parameter (e.g. `https://ui.example.com?url=https://registry.example.com`). The registry must allow CORS from wherever the UI is served. This fork does not host a public instance, so unlike upstream there is no shared demo URL to use here.
   - You can use a single interface with many registry, add them in the menu in the top right of the page.
 - Filter images and tags with the search bar.
   - You can select the search bar with the shortcut `CRTL + F` or `F3`. When the search bar is already focused, the shortcut will fallback to the default behavior (see [#213](https://github.com/Joxit/docker-registry-ui/issues/213)). Since 2.1.0

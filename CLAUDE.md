@@ -31,7 +31,8 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 ## Build gotchas
 
 - **`dist/` is build output and is not committed.** The Docker images build it in a
-  multi-stage build; the GitHub Pages workflow builds it at deploy time for the demo.
+  multi-stage build. Nothing else needs it — the GitHub Pages workflow only renders
+  the README landing page and does not build or publish the bundle.
 - **`dist/index.html` ships with literal `${REGISTRY_URL}`-style placeholders.**
   `bin/90-docker-registry-ui.sh` runs as an nginx entrypoint hook and substitutes them
   with `sed` from environment variables at container start. A change that pre-substitutes
