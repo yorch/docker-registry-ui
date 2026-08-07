@@ -17,8 +17,16 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 - Components are Riot single-file components (`.riot`) under `src/components/`.
 - **Biome does not format `.riot` files, and neither did Prettier before it.**
   Neither tool can parse Riot SFCs. Format them by hand, matching surrounding style.
+- `.riot` components are unit-testable even though no tool formats them: `test/setup/register.js`
+  (loaded via `.mocharc.json`'s `node-option`) registers `test/setup/riot-loader.js`, a Node ESM
+  loader hook that compiles `.riot` files with `@riotjs/compiler` on import, plus a jsdom
+  `document`. Tests can mount and drive components directly, not just plain modules.
 - Styles are SCSS under `src/styles/`, using a dependency-free design system
   (`tokens.scss`, `base.scss`, `layout.scss`, `components.scss`).
+- `src/scripts/cache-request.js` and `src/scripts/request-pool.js` back the registry HTTP layer:
+  a sessionStorage-backed response cache (digest-addressed manifests/blobs cached indefinitely,
+  tag lists and tag-addressed manifests cached for 30s) and a 6-request concurrency pool shared
+  by the catalog's tag counts and the tag list's per-row manifest/blob fetches.
 
 ## Build gotchas
 
