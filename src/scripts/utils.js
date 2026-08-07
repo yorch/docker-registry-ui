@@ -1,9 +1,17 @@
 const LOCAL_STORAGE_KEY = 'registryServer';
 
+// A value that has not arrived yet reads differently from one that could not be
+// fetched. `undefined` is still in flight, `null` failed -- the same rule the
+// catalog tag-count badge follows.
+export const PENDING_LABEL = '…';
+export const UNAVAILABLE_LABEL = '—';
+
 export function bytesToSize(bytes) {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  if (bytes == undefined || isNaN(bytes)) {
-    return '?';
+  if (bytes === null) {
+    return UNAVAILABLE_LABEL;
+  } else if (bytes == undefined || isNaN(bytes)) {
+    return PENDING_LABEL;
   } else if (bytes === 0) {
     return '0 Byte';
   }

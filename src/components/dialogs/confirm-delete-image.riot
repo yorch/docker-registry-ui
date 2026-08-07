@@ -22,6 +22,7 @@
   </app-dialog>
   <script>
     import { Http } from '../../scripts/http';
+    import { invalidateRepository } from '../../scripts/cache-request';
     import router from '../../scripts/router';
     import { ERROR_CAN_NOT_READ_CONTENT_DIGEST } from '../../scripts/utils';
     export default {
@@ -40,7 +41,10 @@
       },
       getContentDigestThenDelete({ name, tag }, opts) {
         const { registryUrl, onNotify, onAuthentication, isRegistrySecured } = opts;
-        const oReq = new Http({ onAuthentication, withCredentials: isRegistrySecured });
+        // Reads the digest this image is about to be deleted by, so it has to
+        // see the registry as it is now: a cached digest from before a re-push
+        // would delete the previous manifest and leave the current one.
+        const oReq = new Http({ onAuthentication, withCredentials: isRegistrySecured, noCache: true });
         const self = this;
         oReq.addEventListener('loadend', function () {
           if (this.status === 200 || this.status === 202) {
@@ -69,6 +73,10 @@
         const oReq = new Http({ onAuthentication, withCredentials: isRegistrySecured });
         oReq.addEventListener('loadend', function () {
           if (this.status === 200 || this.status === 202) {
+            // tag-list refetches a second from now; without this it would be
+            // served the cached list and show the tag as though nothing
+            // happened.
+            invalidateRepository(registryUrl, name);
             router.taglist(name);
             onNotify(`Deleting ${name}:${tag} image. Run \`registry garbage-collect config.yml\` on your registry`);
           } else if (this.status === 404) {

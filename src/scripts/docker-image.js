@@ -15,6 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { Http } from './http.js';
+import { requestPool } from './request-pool.js';
 import { eventTransfer, ERROR_CAN_NOT_READ_CONTENT_DIGEST } from './utils.js';
 import observable from '@riotjs/observable';
 
@@ -87,17 +88,36 @@ export class DockerImage {
       return this.fillInfo();
     });
   }
+  // A failed fetch leaves every field undefined, which is indistinguishable
+  // from one still in flight, so the row would claim to be loading forever.
+  // Report the failure through the events the cells already listen on, using
+  // the same convention as the catalog tag counts: undefined is pending, null
+  // could not be fetched.
+  markUnavailable() {
+    this.size = this.size === undefined ? null : this.size;
+    this.creationDate = this.creationDate === undefined ? null : this.creationDate;
+    this.trigger('size', this.size);
+    this.trigger('creation-date', this.creationDate);
+    this.trigger('blobs', this.blobs || null);
+  }
   fillInfo() {
     if (this._fillInfoWaiting) {
       return;
     }
     this._fillInfoWaiting = true;
+    requestPool.submit((done) => this.sendFillInfo(done));
+  }
+  // `getBlobs` below is submitted separately from this handler rather than run
+  // inside this slot, so a pool full of manifest requests cannot sit waiting on
+  // work that is queued behind it.
+  sendFillInfo(done) {
     const oReq = new Http({
       onAuthentication: this.opts.onAuthentication,
       withCredentials: this.opts.isRegistrySecured,
     });
     const self = this;
     oReq.addEventListener('loadend', function () {
+      done();
       if (this.status === 200 || this.status === 202) {
         const response = JSON.parse(this.responseText);
         if (supportListManifest(response) && self.opts.list) {
@@ -136,8 +156,10 @@ export class DockerImage {
           self.trigger('oci-image');
         }
       } else if (this.status === 404) {
+        self.markUnavailable();
         self.opts.onNotify(`Manifest for ${self.name}:${self.tag} not found`, true);
       } else {
+        self.markUnavailable();
         self.opts.onNotify(this.responseText);
       }
     });
@@ -153,12 +175,16 @@ export class DockerImage {
     oReq.send();
   }
   getBlobs(blob) {
+    requestPool.submit((done) => this.sendGetBlobs(blob, done));
+  }
+  sendGetBlobs(blob, done) {
     const oReq = new Http({
       onAuthentication: this.opts.onAuthentication,
       withCredentials: this.opts.isRegistrySecured,
     });
     const self = this;
     oReq.addEventListener('loadend', function () {
+      done();
       if (this.status === 200 || this.status === 202) {
         const response = JSON.parse(this.responseText);
         self.creationDate = new Date(response.created || self.annotations?.['org.opencontainers.image.created']);
@@ -176,13 +202,16 @@ export class DockerImage {
         self.trigger('creation-date', self.creationDate);
         self.trigger('blobs', self.blobs);
       } else if (this.status === 404) {
+        self.markUnavailable();
         self.opts.onNotify(`Blobs for ${self.name}:${self.tag} not found: blob '${self.blobs}'`, true);
       } else if (!this.responseText) {
+        self.markUnavailable();
         self.opts.onNotify(
           `Can"t get blobs for ${self.name}:${self.tag}: blob '${self.blobs}' (no message error)`,
           true
         );
       } else {
+        self.markUnavailable();
         self.opts.onNotify(this.responseText);
       }
     });
