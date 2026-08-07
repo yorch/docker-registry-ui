@@ -104,8 +104,24 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         window.requestAnimationFrame(this.onResize);
         this.tagComparator = getTagComparator(props.taglistOrder);
       },
+      // Both repositories match the same route, so the router keeps this
+      // component mounted and swaps `image` rather than remounting. Fetching
+      // only on mount left the previous repository's tags on screen under the
+      // new repository's name.
+      onUpdated(props, state) {
+        if (props.image !== state.loadedImage) {
+          this.display(props, state);
+        }
+      },
       display(props, state) {
-        state.reload = () => setTimeout(() => this.display(props, state), 1000);
+        // Claimed before anything can trigger a render, so the update() calls
+        // below cannot re-enter through onUpdated and start a second request.
+        state.loadedImage = props.image;
+        // Read from `this` rather than the captured arguments: by the time a
+        // reload fires, the component may have moved on to another repository.
+        state.reload = () => setTimeout(() => this.display(this.props, this.state), 1000);
+        state.loadend = false;
+        state.page = router.getPageQueryParam() || 1;
         state.tags = [];
         const self = this;
         const oReq = new Http({

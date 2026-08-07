@@ -1,0 +1,28 @@
+<tag-list-host>
+  <tag-list
+    image="{ state.image }"
+    registry-url="{ props.registryUrl }"
+    registry-name="test-registry"
+    tags-per-page="{ props.tagsPerPage }"
+    on-notify="{ () => {} }"
+    on-authentication="{ () => {} }"
+    filter-results=""
+    taglist-order=""
+    show-content-digest="{ false }"
+    show-tag-history="{ false }"
+    is-image-remove-activated="{ false }"
+    pull-url=""
+    is-registry-secured="{ false }"
+  ></tag-list>
+  <script>
+    import TagList from '../../src/components/tag-list/tag-list.riot';
+    // Stands in for the router, which keeps one <tag-list> mounted and swaps the
+    // `image` prop when the route changes between two repositories.
+    export default {
+      components: { TagList },
+      onBeforeMount(props) {
+        this.state = { image: props.image };
+      },
+    };
+  </script>
+</tag-list-host>

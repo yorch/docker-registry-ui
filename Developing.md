@@ -7,8 +7,11 @@ This file contains tips to help you take (and understand) your first steps in Do
 ```bash
 git clone https://github.com/yorch/docker-registry-ui.git
 cd docker-registry-ui
-npm install
+npm ci
 ```
+
+`npm ci` installs from the committed lockfile, which is what the Dockerfile and
+CI use.
 
 ## Run the local server
 
