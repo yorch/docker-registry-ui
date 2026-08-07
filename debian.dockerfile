@@ -19,6 +19,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY rollup.config.js ./
 COPY rollup/ ./rollup/
+# rollup/mock-registry-plugin.js imports dev/mock-registry/server.js at module
+# load, so rollup cannot start without it -- production builds included.
+COPY dev/ ./dev/
 COPY src/ ./src/
 RUN npm run build
 

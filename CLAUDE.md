@@ -6,7 +6,9 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 ## Commands
 
 - `npm ci` — install from the lockfile
-- `npm start` — dev server on http://localhost:8000 (writes to `.serve/`, not `dist/`)
+- `npm start` — dev server on http://localhost:8000 (writes to `.serve/`, not `dist/`).
+  With no `REGISTRY_URL` set it also starts a mock registry on port 5555, so the UI has
+  something to browse without a real registry. See `Developing.md`.
 - `npm run build` — production bundle into `dist/`
 - `npm test` — mocha suites in `test/`
 - `npm run lint` — `biome check .`
@@ -33,6 +35,12 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 - **`dist/` is build output and is not committed.** The Docker images build it in a
   multi-stage build. Nothing else needs it — the GitHub Pages workflow only renders
   the README landing page and does not build or publish the bundle.
+- **`dev/` is a build-time dependency, not just dev tooling.** `rollup.config.js` imports
+  `rollup/mock-registry-plugin.js` at module load, which imports `dev/mock-registry/server.js`.
+  Rollup therefore cannot start without `dev/` present — production builds included. Both
+  Dockerfiles `COPY dev/` into the build stage and `.dockerignore` allowlists it. If you add
+  another top-level directory that `rollup.config.js` reaches, it needs the same treatment or
+  the image build fails while `npm run build` still works locally.
 - **`dist/index.html` ships with literal `${REGISTRY_URL}`-style placeholders.**
   `bin/90-docker-registry-ui.sh` runs as an nginx entrypoint hook and substitutes them
   with `sed` from environment variables at container start. A change that pre-substitutes

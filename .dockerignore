@@ -1,6 +1,7 @@
 *
 !src
 !rollup
+!dev
 !rollup.config.js
 !package.json
 !package-lock.json
