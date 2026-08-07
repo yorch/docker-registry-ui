@@ -8,7 +8,8 @@
     "start": "rollup -c -w --environment ROLLUP_SERVE:true",
     "build": "rollup -c",
     "build:electron": "npm run build && cd examples/electron && npm install && npm run dist",
-    "test": "mocha"
+    "test": "mocha",
+    "test:e2e": "mocha --config .mocharc.e2e.json"
   },
   "repository": {
     "type": "git",
@@ -36,6 +37,7 @@
     "core-js": "^3.27.1",
     "jsdom": "^30.0.1",
     "mocha": "^11.2.0",
+    "playwright": "^1.62.1",
     "riot": "^9.4.4",
     "rollup": "^4.30.1",
     "rollup-plugin-app-utils": "^1.0.6",

@@ -137,3 +137,25 @@ Call `instance.update()` to run a render pass, and read `instance.root` for the
 rendered DOM. Note that `dispatchEvent` invokes listeners even on a disabled
 control, so use `element.click()` when a test depends on `disabled` being
 honoured.
+
+### End-to-end tests
+
+```bash
+npx playwright install chromium   # once
+npm run test:e2e
+```
+
+These drive a real browser against the mock registry. They start `npm start`
+themselves, so nothing else may be listening on port 8000 — the run aborts
+rather than testing against a server it did not start.
+
+They live in `test/e2e/` and are deliberately kept few. Their job is the class
+of bug that a green unit suite has repeatedly let through here: a tag table that
+rendered empty once responses came from cache, a component that kept the
+previous repository's tags after the route changed, cells that claimed to be
+loading forever. Each needed a real document, a real cache and real requests to
+show up at all.
+
+`npm test` does not run them: mocha's default spec does not descend into
+`test/e2e/`, so the fast suite stays fast and needs no browser. CI runs them as
+a separate job.
