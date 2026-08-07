@@ -70,6 +70,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   <script>
     import CatalogElement from './catalog-element.riot';
     import { Http } from '../../scripts/http';
+    import { requestPool } from '../../scripts/request-pool';
     import { getBranching } from '../../scripts/repositories';
     import { getRegistryServers } from '../../scripts/utils';
 
@@ -160,24 +161,29 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       },
       fetchNbTags(image, props) {
         return new Promise((resolve) => {
-          const oReq = new Http({
-            onAuthentication: props.onAuthentication,
-            withCredentials: props.isRegistrySecured,
+          requestPool.submit((done) => {
+            const oReq = new Http({
+              onAuthentication: props.onAuthentication,
+              withCredentials: props.isRegistrySecured,
+            });
+            oReq.addEventListener('loadend', function () {
+              // Free the slot before doing anything with the response: parsing
+              // it must not decide whether the next request ever starts.
+              done();
+              if (this.status === 200) {
+                resolve({ count: (JSON.parse(this.responseText).tags || []).length });
+              } else if (this.status === 404) {
+                resolve({ error: 'Server not found' });
+              } else {
+                resolve({ error: this.responseText });
+              }
+            });
+            oReq.addEventListener('error', function () {
+              resolve({ error: this.getErrorMessage() });
+            });
+            oReq.open('GET', props.registryUrl + '/v2/' + image + '/tags/list');
+            oReq.send();
           });
-          oReq.addEventListener('loadend', function () {
-            if (this.status === 200) {
-              resolve({ count: (JSON.parse(this.responseText).tags || []).length });
-            } else if (this.status === 404) {
-              resolve({ error: 'Server not found' });
-            } else {
-              resolve({ error: this.responseText });
-            }
-          });
-          oReq.addEventListener('error', function () {
-            resolve({ error: this.getErrorMessage() });
-          });
-          oReq.open('GET', props.registryUrl + '/v2/' + image + '/tags/list');
-          oReq.send();
         });
       },
       display(props, state) {
@@ -191,6 +197,9 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           props.onClearPageError();
         }
         this.cancelPendingCounts();
+        // Counts queued for the registry we are leaving are worthless now, and
+        // they would otherwise be served ahead of this registry's own.
+        requestPool.drop();
         let repositories = [];
         let nImages = 0;
         const self = this;

@@ -15,6 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { Http } from './http.js';
+import { requestPool } from './request-pool.js';
 import { eventTransfer, ERROR_CAN_NOT_READ_CONTENT_DIGEST } from './utils.js';
 import observable from '@riotjs/observable';
 
@@ -92,12 +93,19 @@ export class DockerImage {
       return;
     }
     this._fillInfoWaiting = true;
+    requestPool.submit((done) => this.sendFillInfo(done));
+  }
+  // `getBlobs` below is submitted separately from this handler rather than run
+  // inside this slot, so a pool full of manifest requests cannot sit waiting on
+  // work that is queued behind it.
+  sendFillInfo(done) {
     const oReq = new Http({
       onAuthentication: this.opts.onAuthentication,
       withCredentials: this.opts.isRegistrySecured,
     });
     const self = this;
     oReq.addEventListener('loadend', function () {
+      done();
       if (this.status === 200 || this.status === 202) {
         const response = JSON.parse(this.responseText);
         if (supportListManifest(response) && self.opts.list) {
@@ -153,12 +161,16 @@ export class DockerImage {
     oReq.send();
   }
   getBlobs(blob) {
+    requestPool.submit((done) => this.sendGetBlobs(blob, done));
+  }
+  sendGetBlobs(blob, done) {
     const oReq = new Http({
       onAuthentication: this.opts.onAuthentication,
       withCredentials: this.opts.isRegistrySecured,
     });
     const self = this;
     oReq.addEventListener('loadend', function () {
+      done();
       if (this.status === 200 || this.status === 202) {
         const response = JSON.parse(this.responseText);
         self.creationDate = new Date(response.created || self.annotations?.['org.opencontainers.image.created']);
