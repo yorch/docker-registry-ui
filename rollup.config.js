@@ -14,11 +14,24 @@ import copyTransform from './rollup/copy-transform.js';
 import license from './rollup/license.js';
 import checkOutput from './rollup/check-output.js';
 import importSVG from './rollup/import-svg.js';
+import mockRegistryPlugin from './rollup/mock-registry-plugin.js';
+import { DEFAULT_MOCK_PORT } from './dev/mock-registry/server.js';
+import { devConfig, applyDevConfig } from './rollup/dev-config.js';
 import fs from 'fs';
 const version = JSON.parse(fs.readFileSync('./package.json', 'utf-8')).version;
 
 const useServe = process.env.ROLLUP_SERVE === 'true';
 const output = useServe ? '.serve' : 'dist';
+
+// Setting REGISTRY_URL says you have a registry of your own, so the mock stays
+// out of the way. Leaving it unset gets you one, which is what makes a bare
+// `npm start` show a populated interface.
+const mockPort = Number(process.env.MOCK_REGISTRY_PORT) || DEFAULT_MOCK_PORT;
+const useMockRegistry = useServe && !process.env.REGISTRY_URL;
+const serveConfig = devConfig({
+  ...process.env,
+  REGISTRY_URL: process.env.REGISTRY_URL || `http://localhost:${mockPort}`,
+});
 
 const getVersion = (version) => {
   const parts = version.split('.').map((e) => parseInt(e));
@@ -50,6 +63,9 @@ const plugins = [
 ];
 
 if (useServe) {
+  if (useMockRegistry) {
+    plugins.push(mockRegistryPlugin({ port: mockPort, latency: Number(process.env.MOCK_LATENCY_MS) || 0 }));
+  }
   plugins.push(serve({ host: 'localhost', port: 8000, contentBase: [output, './'] }));
 } else {
   plugins.push(terser({ format: { preamble: license } }));
@@ -66,7 +82,14 @@ export default [
     },
     plugins: [emptyDirectories(output)].concat(
       plugins,
-      html({ template: () => htmlUseref('./src/index.html', { developement: useServe, production: !useServe }) }),
+      html({
+        template: () => {
+          const markup = htmlUseref('./src/index.html', { developement: useServe, production: !useServe });
+          // Only in serve mode: a production build must ship the placeholders
+          // untouched for the container entrypoint to substitute at startup.
+          return useServe ? applyDevConfig(markup, serveConfig) : markup;
+        },
+      }),
       checkOutput(output)
     ),
   },
