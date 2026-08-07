@@ -11,6 +11,7 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
   something to browse without a real registry. See `Developing.md`.
 - `npm run build` — production bundle into `dist/`
 - `npm test` — mocha suites in `test/`
+- `npm run build:site` — the project site (GitHub Pages) into `site/_build`
 - `npm run lint` — `biome check .`
 - `npm run format` — `biome format --write .`
 
@@ -30,11 +31,26 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
   tag lists and tag-addressed manifests cached for 30s) and a 6-request concurrency pool shared
   by the catalog's tag counts and the tag list's per-row manifest/blob fetches.
 
+## The project site
+
+- `site/` builds the GitHub Pages site — plain static HTML, no Jekyll and no SSG.
+  `site/static/` is copied verbatim; `site/build.mjs` renders the pages.
+- **`site/docs.html` is generated from `README.md`.** The README is the canonical
+  reference, so the docs page is assembled from the sections named in `DOC_SECTIONS`
+  in `site/build.mjs`. Rename a `##` heading in the README and the build fails loudly
+  rather than silently dropping that section — update `DOC_SECTIONS` to match.
+- Heading anchors use GitHub's own slug algorithm on purpose. The app's error page
+  links to `#faq` and `#available-options`, so a different scheme would break those
+  links for anyone who lands on the hosted docs instead of the README.
+- The site reuses the colour, radius and motion tokens from `src/styles/tokens.scss`
+  and the same `data-theme` contract as the app, but defines its own larger type
+  scale — the app's stops at 28px, which is far too small for a page headline.
+
 ## Build gotchas
 
 - **`dist/` is build output and is not committed.** The Docker images build it in a
-  multi-stage build. Nothing else needs it — the GitHub Pages workflow only renders
-  the README landing page and does not build or publish the bundle.
+  multi-stage build. The GitHub Pages workflow does not touch it — the project site
+  is a separate build (`npm run build:site`) that does not include the app bundle.
 - **`dev/` is a build-time dependency, not just dev tooling.** `rollup.config.js` imports
   `rollup/mock-registry-plugin.js` at module load, which imports `dev/mock-registry/server.js`.
   Rollup therefore cannot start without `dev/` present — production builds included. Both

@@ -7,6 +7,7 @@
     "lint": "biome check .",
     "start": "rollup -c -w --environment ROLLUP_SERVE:true",
     "build": "rollup -c",
+    "build:site": "node site/build.mjs",
     "build:electron": "npm run build && cd examples/electron && npm install && npm run dist",
     "test": "mocha"
   },
@@ -35,6 +36,7 @@
     "@rollup/plugin-terser": "^0.4.4",
     "core-js": "^3.27.1",
     "jsdom": "^30.0.1",
+    "marked": "^18.0.9",
     "mocha": "^11.2.0",
     "riot": "^9.4.4",
     "rollup": "^4.30.1",
