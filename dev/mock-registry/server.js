@@ -142,10 +142,14 @@ export const createMockRegistry = async ({
   latency = 0,
 } = {}) => {
   const repositories = buildStore(fixtures);
+  // Lets a test assert how many times something was asked for, which is how you
+  // catch a component that refetches on every render rather than once.
+  const requests = new Map();
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const path = decodeURIComponent(url.pathname);
+    requests.set(path, (requests.get(path) || 0) + 1);
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204, CORS_HEADERS);
@@ -244,6 +248,7 @@ export const createMockRegistry = async ({
   return {
     url: `http://localhost:${address.port}`,
     port: address.port,
+    requestCount: (path) => requests.get(path) || 0,
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 };
