@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ['*']
+    tags: ['[0-9]*.[0-9]*.[0-9]*']
 
 permissions:
   contents: write
@@ -68,6 +68,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/yorch/docker-registry-ui:debian
+            ghcr.io/yorch/docker-registry-ui:latest-debian
             ghcr.io/yorch/docker-registry-ui:${{ steps.tags.outputs.major }}-debian
             ghcr.io/yorch/docker-registry-ui:${{ steps.tags.outputs.minor }}-debian
             ghcr.io/yorch/docker-registry-ui:${{ steps.tags.outputs.patch }}-debian

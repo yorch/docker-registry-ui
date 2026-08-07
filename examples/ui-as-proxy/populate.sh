@@ -1,10 +1,10 @@
 #!/bin/bash
 
-docker tag ghcr.io/yorch/docker-registry-ui:static localhost/yorch/docker-registry-ui:static
-docker tag ghcr.io/yorch/docker-registry-ui:static localhost/yorch/docker-registry-ui:0.3
-docker tag ghcr.io/yorch/docker-registry-ui:static localhost/yorch/docker-registry-ui:0.3.0
-docker tag ghcr.io/yorch/docker-registry-ui:static localhost/yorch/docker-registry-ui:0.3.0-static
-docker tag ghcr.io/yorch/docker-registry-ui:static localhost/yorch/docker-registry-ui:0.3-static
+docker tag ghcr.io/yorch/docker-registry-ui:latest localhost/yorch/docker-registry-ui:static
+docker tag ghcr.io/yorch/docker-registry-ui:latest localhost/yorch/docker-registry-ui:0.3
+docker tag ghcr.io/yorch/docker-registry-ui:latest localhost/yorch/docker-registry-ui:0.3.0
+docker tag ghcr.io/yorch/docker-registry-ui:latest localhost/yorch/docker-registry-ui:0.3.0-static
+docker tag ghcr.io/yorch/docker-registry-ui:latest localhost/yorch/docker-registry-ui:0.3-static
 
 docker push localhost/yorch/docker-registry-ui
 
