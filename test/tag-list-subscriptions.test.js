@@ -2,6 +2,7 @@ import { component } from 'riot';
 import observable from '@riotjs/observable';
 import ImageSize from '../src/components/tag-list/image-size.riot';
 import Architectures from '../src/components/tag-list/architectures.riot';
+import ImageContentDigest from '../src/components/tag-list/image-content-digest.riot';
 import assert from 'assert';
 
 // An image whose manifest never arrives -- the window in which these components
@@ -88,6 +89,55 @@ describe('tag list image subscriptions', () => {
       ]);
       assert.match(instance.root.textContent, /amd64/);
       assert.match(instance.root.textContent, /arm64v8/);
+    });
+  });
+
+  describe('image-content-digest', () => {
+    it('should subscribe once however many times it re-renders in flight', () => {
+      const { image, registrations } = pendingImage();
+      const instance = mount(ImageContentDigest, { image });
+      for (let i = 0; i < 5; i++) {
+        instance.update();
+      }
+      assert.equal(registrations['content-digest'], 1);
+    });
+
+    it('should still render the digest once it arrives', () => {
+      const { image } = pendingImage();
+      const instance = mount(ImageContentDigest, { image });
+      image.contentDigest = `sha256:${'ab'.repeat(32)}`;
+      image.trigger('content-digest', image.contentDigest);
+      image.trigger('content-digest-chars', 70);
+      assert.match(instance.root.textContent, /^sha256:(ab)+$/);
+    });
+
+    // Guards a coupling that is currently invisible: this is safe today only
+    // because DockerImage.markUnavailable() deliberately does not report a
+    // failed content digest. A truthiness guard cannot tell `null` (failed)
+    // from `undefined` (pending), and `get-content-digest` answers an already
+    // resolved value by re-emitting it -- which is how the same shape turned
+    // into unbounded recursion in image-date.
+    it('should not re-ask for a digest that already resolved to a failure', () => {
+      const { image } = pendingImage();
+      // Mirror the two DockerImage contracts this component drives, since the
+      // loop only closes if both are present: `get-content-digest` answers an
+      // already-resolved value by re-emitting it, and `get-content-digest-chars`
+      // answers with the stored width.
+      image.chars = 0;
+      image.on('get-content-digest', () => {
+        if (image.contentDigest !== undefined) {
+          image.trigger('content-digest', image.contentDigest);
+        }
+      });
+      image.on('content-digest-chars', (chars) => {
+        image.chars = chars;
+      });
+      image.on('get-content-digest-chars', () => image.trigger('content-digest-chars', image.chars));
+
+      const instance = mount(ImageContentDigest, { image });
+      image.contentDigest = null;
+      assert.doesNotThrow(() => image.trigger('content-digest', null), RangeError);
+      assert.ok(instance.root);
     });
   });
 });
