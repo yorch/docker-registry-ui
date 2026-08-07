@@ -31,7 +31,7 @@ export const supportListManifest = (response) => {
 
 export const filterWrongManifests = (response) => {
   return response.manifests.filter(
-    ({ annotations }) => !annotations || annotations['vnd.docker.reference.type'] !== 'attestation-manifest'
+    ({ annotations }) => !annotations || annotations['vnd.docker.reference.type'] !== 'attestation-manifest',
   );
 };
 
@@ -167,7 +167,7 @@ export class DockerImage {
     oReq.setRequestHeader(
       'Accept',
       'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json' +
-        (self.opts.list ? ', application/vnd.docker.distribution.manifest.list.v2+json' : '')
+        (self.opts.list ? ', application/vnd.docker.distribution.manifest.list.v2+json' : ''),
     );
     if (self.opts.useControlCacheHeader) {
       oReq.setRequestHeader('Cache-Control', 'no-store, no-cache');
@@ -208,7 +208,7 @@ export class DockerImage {
         self.markUnavailable();
         self.opts.onNotify(
           `Can"t get blobs for ${self.name}:${self.tag}: blob '${self.blobs}' (no message error)`,
-          true
+          true,
         );
       } else {
         self.markUnavailable();
@@ -218,7 +218,7 @@ export class DockerImage {
     oReq.open('GET', `${this.opts.registryUrl}/v2/${self.name}/blobs/${blob}`);
     oReq.setRequestHeader(
       'Accept',
-      'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json'
+      'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json',
     );
     oReq.send();
   }

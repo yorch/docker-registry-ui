@@ -32,7 +32,7 @@ describe('docker-image', () => {
     it('should return all manifests for `application/vnd.docker.distribution.manifest.list.v2+json`', () => {
       assert.equal(
         filterWrongManifests(dockerManifestList['application/vnd.docker.distribution.manifest.list.v2+json']).length,
-        2
+        2,
       );
     });
     it('should return all manifests for `application/vnd.oci.image.index.v1+json`', () => {

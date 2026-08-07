@@ -1,8 +1,10 @@
 *
-!dist
+!src
+!rollup
+!dev
+!rollup.config.js
+!package.json
+!package-lock.json
 !bin
 !nginx
-!src
-!package.json
-!gulpfile.js
 !favicon.ico

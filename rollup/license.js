@@ -1,5 +1,6 @@
 export default `/*
  * Copyright (C) 2016-2023 Jones Magloire @Joxit
+ * Copyright (C) 2026 Jorge Barnaby @yorch
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by

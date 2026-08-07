@@ -1,17 +1,30 @@
 title: Docker Registry User Interface
 description: The simplest and most complete UI for your private registry!
-url: https://joxit.dev/docker-registry-ui
-google_analytics: G-T158HYBVZ2
-remote_theme: joxit/joxit.github.io
-author: Jones Magloire
-twitter:
-  username: Joxit
-instagram:
-  username: jox.it
+url: https://yorch.github.io/docker-registry-ui
+theme: jekyll-theme-cayman
+author: Jorge Barnaby
 defaults:
   - scope:
-      path: ""
+      path: ''
     values:
       image: /screenshot.png
 plugins:
   - jekyll-seo-tag
+exclude:
+  - node_modules
+  - package.json
+  - package-lock.json
+  - biome.json
+  - rollup.config.js
+  - rollup
+  - src
+  - test
+  - bin
+  - nginx
+  - examples
+  - docs
+  - Dockerfile
+  - debian.dockerfile
+  - .dockerignore
+  - CLAUDE.md
+  - CONTRIBUTING.md

@@ -1,34 +1,54 @@
 # Docker Registry User Interface
 
-[![Stars](https://img.shields.io/github/stars/joxit/docker-registry-ui.svg?logo=github&maxAge=86400)](https://github.com/Joxit/docker-registry-ui/stargazers)
-[![Pulls](https://img.shields.io/docker/pulls/joxit/docker-registry-ui.svg?maxAge=86400)](https://hub.docker.com/r/joxit/docker-registry-ui)
-[![Sponsor](https://joxit.dev/images/sponsor.svg)](https://github.com/sponsors/Joxit)
-[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/joxit)](https://artifacthub.io/packages/search?repo=joxit)
-[![Version](https://img.shields.io/github/release/joxit/docker-registry-ui?display_name=tag&sort=semver)](https://github.com/Joxit/docker-registry-ui/releases)
+[![Version](https://img.shields.io/github/release/yorch/docker-registry-ui?display_name=tag&sort=semver)](https://github.com/yorch/docker-registry-ui/releases)
+[![Stars](https://img.shields.io/github/stars/yorch/docker-registry-ui.svg?logo=github&maxAge=86400)](https://github.com/yorch/docker-registry-ui/stargazers)
+[![GHCR](https://img.shields.io/badge/ghcr.io-yorch%2Fdocker--registry--ui-2496ed?logo=docker&logoColor=white)](https://github.com/yorch/docker-registry-ui/pkgs/container/docker-registry-ui)
+
+> This is a fork of [Joxit/docker-registry-ui](https://github.com/Joxit/docker-registry-ui), maintained independently for my own use. It is not affiliated with or endorsed by the original author. Licensed AGPL-3.0, same as upstream.
+
+> Issue and pull request references throughout this document (`#NN`) link to [upstream's tracker](https://github.com/Joxit/docker-registry-ui/issues), where those features and fixes originated.
+
+## Changes from upstream
+
+This fork is a modified version of the original project. The substantive differences:
+
+- **Modern SaaS redesign.** A header-bar application shell, card-based data tables, and light/dark themes replace the previous Material UI look. The `riot-mui` dependency (which upstream pinned to a fork commit) is gone, replaced by a dependency-free design system under `src/styles/` (`tokens.scss`, `base.scss`, `layout.scss`, `components.scss`). See [docs/UI-UX-REVAMP.md](https://github.com/yorch/docker-registry-ui/blob/main/docs/UI-UX-REVAMP.md) for the design notes.
+- **Async tag counts in the catalog.** Tag-count badges are fetched in the background and fill in as each count resolves, instead of blocking the catalog render.
+- **Tag-list selection, pagination, and error fixes.** `Alt + Click` and `Shift + Click` selection work again — they read `altKey`/`shiftKey`, which a forwarded `change` event never carried, so the checkbox now forwards pointer events instead. Select-all-on-page respects the configured page size rather than falling back to a default. `getNumPages` no longer reports a phantom empty trailing page when the tag count is an exact multiple of the page size. `image-size` and `architectures` no longer leak an event listener on every re-render. A page-level error (unreachable catalog, mixed content, malformed registry URL) stays visible until the next catalog load instead of disappearing on a 1s timer.
+- **Registry request caching and bounded fan-out.** Tag lists and tag-addressed manifests are now cached for 30 seconds (`MUTABLE_TTL_MS` in `src/scripts/cache-request.js`), in addition to the existing indefinite cache for digest-addressed blobs and manifests. Requests are bounded to 6 concurrent (`MAX_CONCURRENT_REQUESTS` in `src/scripts/request-pool.js`) instead of firing all at once — on a 100-tag catalog, peak concurrent requests drops from about 101 to about 7. Tag-list cells distinguish a pending fetch from a failed one instead of appearing to load forever, and the delete flow opts out of the cache, since it reads a content digest and then deletes by it.
+- **Images are published to GHCR**, not Docker Hub. Pull from `ghcr.io/yorch/docker-registry-ui` instead of `joxit/docker-registry-ui`.
+- **Biome replaces Prettier** for formatting and linting.
+- **Multi-stage Docker builds**, and `dist/` is no longer committed to the repository. The images build the bundle themselves.
+- **Build platforms are narrowed to `linux/amd64` and `linux/arm64`.** Upstream additionally published `arm/v6`, `arm/v7`, `ppc64le`, `s390x` and similar; those were deliberately dropped here.
 
 ## Overview
 
 This project aims to provide a simple and complete user interface for your private docker registry. You can customize the interface with various options. The major option is `SINGLE_REGISTRY` which allows you to disable the dynamic selection of docker registries (same behavior as the old **static** tag).
 
-You may need the [migration guide from 1.x to 2.x](https://github.com/Joxit/docker-registry-ui/wiki/Migrating-from-1.x-to-2.x) or [the 1.x readme](https://github.com/Joxit/docker-registry-ui/blob/8fe3adf12540d1316cb57628ebe86a392a703d90/README.md). The project support both [docker registry v2](https://github.com/distribution/distribution/releases/tag/v2.0.0) and [docker registry v3](https://github.com/distribution/distribution/releases/tag/v3.0.0).
+You may need the [migration guide from 1.x to 2.x](https://github.com/Joxit/docker-registry-ui/wiki/Migrating-from-1.x-to-2.x) or [the 1.x readme](https://github.com/Joxit/docker-registry-ui/blob/8fe3adf12540d1316cb57628ebe86a392a703d90/README.md) — both are upstream documentation, kept here because this fork has no local equivalent. The project support both [docker registry v2](https://github.com/distribution/distribution/releases/tag/v2.0.0) and [docker registry v3](https://github.com/distribution/distribution/releases/tag/v3.0.0).
 
-This web user interface uses [Riot](https://github.com/Riot/riot) the react-like user interface micro-library with a custom, dependency-free design system (modern SaaS look: sidebar shell, data tables, light/dark themes).
-
-If you like my work and want to support it, don't hesitate to [sponsor me](https://github.com/sponsors/Joxit).
+This web user interface uses [Riot](https://github.com/Riot/riot) the react-like user interface micro-library with a custom, dependency-free design system (modern SaaS look: header-bar shell, data tables, light/dark themes).
 
 ## Supported Docker tags
 
+Images are published to [`ghcr.io/yorch/docker-registry-ui`](https://github.com/yorch/docker-registry-ui/pkgs/container/docker-registry-ui).
+
 * `latest`: image with the latest release of Docker Registry UI based on `nginx:alpine`
 * `latest-debian`: image with the latest release of Docker Registry UI based on `nginx:debian`
-* `main`, `master`: image with the beta version of  Docker Registry UI based on `nginx:alpine`
-* `main-debian`, `master-debian`: image with the beta version of  Docker Registry UI based on `nginx:debian`
+* `main`: image with the beta version of Docker Registry UI based on `nginx:alpine`
+* `main-debian`: image with the beta version of Docker Registry UI based on `nginx:debian`
 * `2`: image with the latest release of Docker Registry UI v2 (includes latest minor and patch version)
 * `2.x`: image with the latest release of Docker Registry UI v2.x (includes latest patch version)
 * `2.x.y`: image with the specific release of Docker Registry UI v2.x.y
+* each of the above also has a `-debian` variant built on `nginx:debian`
 
-## [Project Page](https://joxit.dev/docker-registry-ui), [Live Demo](https://joxit.dev/docker-registry-ui/demo/), [Examples](https://github.com/Joxit/docker-registry-ui/tree/main/examples), [Helm Chart](https://helm.joxit.dev/)
+```sh
+docker pull ghcr.io/yorch/docker-registry-ui:latest
+```
 
-![preview](https://raw.github.com/Joxit/docker-registry-ui/main/docker-registry-ui.gif "Preview of Docker Registry UI")
+## [Project Page](https://yorch.github.io/docker-registry-ui), [Examples](https://github.com/yorch/docker-registry-ui/tree/main/examples)
+
+![preview](./screenshot.png "Preview of Docker Registry UI")
 
 ## Hidden Features
 
@@ -38,14 +58,14 @@ If you like my work and want to support it, don't hesitate to [sponsor me](https
   - Select all contigous tags between two tags with `Shift + Click` on the first tag then `Shift + Click` on the second tag (see [#287](https://github.com/Joxit/docker-registry-ui/pull/287)). Since 2.4.0
 - Show sha256 for specific tag (hover image tag).
 - Sort the tag list with number compatibility (see [#45](https://github.com/Joxit/docker-registry-ui/pull/45) and [#46](https://github.com/Joxit/docker-registry-ui/pull/46)). Since 0.4.0
-- Share your docker registry UI without installation or when you are deploying a UI with  `SINGLE_REGISTRY=false`.
-  - Use the public demo and the query parameter `url` (e.g. `https://joxit.dev/docker-registry-ui/demo?url=https://registry.example.com`). If you need credentials on your private registry, you must set the `Access-Control-Allow-Origin` to `https://joxit.dev`.
+- Share your docker registry UI when you are deploying a UI with `SINGLE_REGISTRY=false`.
+  - Point any deployed instance at a registry with the `url` query parameter (e.g. `https://ui.example.com?url=https://registry.example.com`). The registry must allow CORS from wherever the UI is served. This fork does not host a public instance, so unlike upstream there is no shared demo URL to use here.
   - You can use a single interface with many registry, add them in the menu in the top right of the page.
 - Filter images and tags with the search bar.
   - You can select the search bar with the shortcut `CRTL + F` or `F3`. When the search bar is already focused, the shortcut will fallback to the default behavior (see [#213](https://github.com/Joxit/docker-registry-ui/issues/213)). Since 2.1.0
 - Multi arch support in history page (see [#130](https://github.com/Joxit/docker-registry-ui/issues/130) and [#134](https://github.com/Joxit/docker-registry-ui/pull/134)). Since 1.5.0
 - Show the content of the dockerfile (see [#286](https://github.com/Joxit/docker-registry-ui/pull/286)). Since 2.4.0
-- The UI will cache requests from your registry, such as blobs and some manifests (URL with `sha256:`).
+- The UI will cache requests from your registry: blobs and manifests addressed by digest (URL with `sha256:`) are cached indefinitely, and tag lists and tag-addressed manifests are cached for 30 seconds. The delete flow always bypasses the cache, since it reads `Docker-Content-Digest` from a tag-addressed manifest and then deletes by that digest — a stale hit there would delete the wrong manifest.
 
 Checkout all options in [Available options](#available-options) section.
 
@@ -68,9 +88,9 @@ Checkout all options in [Available options](#available-options) section.
 -   Why the default nginx `Host` is set to `$http_host` ?
     -   This fixes the issue [#88](https://github.com/Joxit/docker-registry-ui/issues/88). More about this in [#113](https://github.com/Joxit/docker-registry-ui/issues/113).
 -   Why OPTIONS (aka preflight requests) and DELETE fails with 401 status code (using Basic Auth) or why the UI says to check my `Access-Control-Allow-Origin` ?
-    -   This is caused by a bug in docker registry, it returns 401 status requests on preflight requests, this breaks [W3C preflight-request specification](https://www.w3.org/TR/cors/#preflight-request). I contacted docker registry maintainers and this will never be fixed ([distribution/distribution#4458](https://github.com/distribution/distribution/issues/4458)). I suggest to have your UI on the same domain than your registry e.g. registry.example.com/ui/ **or** use `NGINX_PROXY_PASS_URL` **or** configure a nginx/apache/haproxy in front of your registry that returns 200 on each OPTIONS requests. (see [#104](https://github.com/Joxit/docker-registry-ui/issues/104), [#204](https://github.com/Joxit/docker-registry-ui/issues/204), [#207](https://github.com/Joxit/docker-registry-ui/issues/207), [#214](https://github.com/Joxit/docker-registry-ui/issues/214), [#266](https://github.com/Joxit/docker-registry-ui/issues/266), [#278](https://github.com/Joxit/docker-registry-ui/issues/278)).
+    -   This is caused by a bug in docker registry, it returns 401 status requests on preflight requests, this breaks [W3C preflight-request specification](https://www.w3.org/TR/cors/#preflight-request). The docker registry maintainers have stated this will never be fixed ([distribution/distribution#4458](https://github.com/distribution/distribution/issues/4458)). It is suggested to have your UI on the same domain than your registry e.g. registry.example.com/ui/ **or** use `NGINX_PROXY_PASS_URL` **or** configure a nginx/apache/haproxy in front of your registry that returns 200 on each OPTIONS requests. (see [#104](https://github.com/Joxit/docker-registry-ui/issues/104), [#204](https://github.com/Joxit/docker-registry-ui/issues/204), [#207](https://github.com/Joxit/docker-registry-ui/issues/207), [#214](https://github.com/Joxit/docker-registry-ui/issues/214), [#266](https://github.com/Joxit/docker-registry-ui/issues/266), [#278](https://github.com/Joxit/docker-registry-ui/issues/278)).
 -   Can I use the docker registry ui as a standalone application (with Electron) ?
-    -   Yes, check out the example [here](https://github.com/Joxit/docker-registry-ui/tree/main/examples/electron). (see [#129](https://github.com/Joxit/docker-registry-ui/pull/129))
+    -   Yes, check out the example [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/electron). (see [#129](https://github.com/Joxit/docker-registry-ui/pull/129))
 -   I deleted images through the UI, but they are still present on the server. How can I delete them?
     - When you delete an image with the UI, only the reference is deleted and not the content. To remove dangling images, you need to run the garbage collector of the registry with the command `registry garbage-collect config.yml` or `docker exec registry registry garbage-collect config.yml`. (see [#77](https://github.com/Joxit/docker-registry-ui/issues/77), [#147](https://github.com/Joxit/docker-registry-ui/issues/147))
 -   Why when I delete one tag, all tags with the same SHA are deleted ?
@@ -86,7 +106,7 @@ Checkout all options in [Available options](#available-options) section.
 -   I'm using `NGINX_PROXY_PASS_URL`, my registry server has been recreated and the UI cannot connect with the message `[error] 176#176: *2 connect() failed (111: Connection refused) while connecting to upstream`, what can I do?
     - Nginx get the IP of all addresses only once at runtime, since your container has been recreated, its IP changed too. To prevent this kind of issue, you may use the option `NGINX_RESOLVER` and set to `127.0.0.11`.
 
-Need more informations ? Try my [examples](https://github.com/Joxit/docker-registry-ui/tree/main/examples) or open an issue.
+Need more informations ? Try the [examples](https://github.com/yorch/docker-registry-ui/tree/main/examples) or open an issue.
 
 ## Available options
 
@@ -115,12 +135,12 @@ Some env options are available for use this interface for **only one server** (w
 - `THEME_*`: See table in [Theme options](#theme-options) section (see [#283](https://github.com/Joxit/docker-registry-ui/pull/283)). Since 2.4.0
 - `TAGLIST_ORDER`: Set the default order for the taglist page, could be `num-asc;alpha-asc`, `num-desc;alpha-asc`, `num-asc;alpha-desc`, `num-desc;alpha-desc`, `alpha-asc;num-asc`, `alpha-asc;num-desc`, `alpha-desc;num-asc` or `alpha-desc;num-desc` (see [#307](https://github.com/Joxit/docker-registry-ui/pull/307)). (default: `alpha-asc;num-desc`). Since 2.5.0
 - `CATALOG_DEFAULT_EXPANDED`: Expand by default all repositories in catalog (see [#302](https://github.com/Joxit/docker-registry-ui/issues/302)). (default: `false`). Since 2.5.0
-- `CATALOG_MIN_BRANCHES`: Set the minimum repository/namespace to expand (e.g. `joxit/docker-registry-ui` `joxit/` is the repository/namespace). Branching can be disabled if min and max are set to 0. (see [#319](https://github.com/Joxit/docker-registry-ui/pull/319)). (default: `1`). Since 2.5.0
-- `CATALOG_MAX_BRANCHES`: Set the maximum repository/namespace to expand (e.g. `joxit/docker-registry-ui` `joxit/` is the repository/namespace). Branching can be disabled if min and max are set to 0. (see [#319](https://github.com/Joxit/docker-registry-ui/pull/319)). (default: `1`). Since 2.5.0
+- `CATALOG_MIN_BRANCHES`: Set the minimum repository/namespace to expand (e.g. `yorch/docker-registry-ui` `yorch/` is the repository/namespace). Branching can be disabled if min and max are set to 0. (see [#319](https://github.com/Joxit/docker-registry-ui/pull/319)). (default: `1`). Since 2.5.0
+- `CATALOG_MAX_BRANCHES`: Set the maximum repository/namespace to expand (e.g. `yorch/docker-registry-ui` `yorch/` is the repository/namespace). Branching can be disabled if min and max are set to 0. (see [#319](https://github.com/Joxit/docker-registry-ui/pull/319)). (default: `1`). Since 2.5.0
 - `TAGLIST_PAGE_SIZE`: Set the number of tags to display in one page. (default: `100`). Since 2.5.0
 - `REGISTRY_SECURED`: By default, the UI will check on every requests if your registry is secured or not (you will see `401` responses in your console). Set to `true` if your registry uses Basic Authentication and divide by two the number of call to your registry. (default `false`). Since 2.5.0
 - `SHOW_TAG_HISTORY`: Whether to show the tag history feature or not. Allows to simplify the user interface by hiding it form the tag list if set to `false`. (default: `true`).
-There are some examples with [docker-compose](https://docs.docker.com/compose/) and docker-registry-ui as proxy [here](https://github.com/Joxit/docker-registry-ui/tree/main/examples/ui-as-proxy/) or docker-registry-ui as standalone [here](https://github.com/Joxit/docker-registry-ui/tree/main/examples/ui-as-standalone/).
+There are some examples with [docker-compose](https://docs.docker.com/compose/) and docker-registry-ui as proxy [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-proxy/) or docker-registry-ui as standalone [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-standalone/).
 - `DOCKER_REGISTRY_UI_TITLE`: Set a custom title displayed in the header bar. (default: `Docker Registry UI`).
 - `ENABLE_VERSION_NOTIFICATION`: Display notification when a new version of Docker Registry UI is available. This is a weekly check. (default: `true`).
 
@@ -151,7 +171,7 @@ version: '3.8'
 
 services:
   registry-ui:
-    image: joxit/docker-registry-ui:main
+    image: ghcr.io/yorch/docker-registry-ui:main
     restart: always
     ports:
       - 80:80
@@ -188,7 +208,7 @@ services:
 
 :warning: Before posting issues about CORS, please read the and all created issues.
 
-:warning: If you **are using credentials** and your registry is on a different host than your UI, please read the [FAQ about OPTIONS](https://github.com/Joxit/docker-registry-ui#:~:text=Why%20OPTIONS%20(aka%20preflight%20requests)), all the linked issues and [distribution/distribution#4458](https://github.com/distribution/distribution/issues/4458) first. The best way for the UI to work is using `NGINX_PROXY_PASS_URL` or configure your own proxy (nginx, haproxy...) that will be on top of your **docker registry** (and not the UI!) to override OPTIONS requests.
+:warning: If you **are using credentials** and your registry is on a different host than your UI, please read the [FAQ about OPTIONS](#faq), all the linked issues and [distribution/distribution#4458](https://github.com/distribution/distribution/issues/4458) first. The best way for the UI to work is using `NGINX_PROXY_PASS_URL` or configure your own proxy (nginx, haproxy...) that will be on top of your **docker registry** (and not the UI!) to override OPTIONS requests.
 
 If your docker registry **does not need credentials**, you will need to send this HEADER:
 
@@ -268,19 +288,25 @@ auth:
 ## Standalone Application
 
 If you do not want to install the docker-registry-ui on your server, you may
-check out the [Electron](examples/electron/README.md) standalone application (not updated).
+check out the [Electron](https://github.com/yorch/docker-registry-ui/blob/main/examples/electron/README.md) standalone application (not updated).
 
 ## All examples
 
-- [Use docker-registry-ui as a proxy (use REGISTRY_URL)](https://github.com/Joxit/docker-registry-ui/tree/main/examples/ui-as-proxy)
-- [Use docker-registry-ui as standalone (use URL)](https://github.com/Joxit/docker-registry-ui/tree/main/examples/ui-as-standalone)
-- [Use docker-registry-ui with traefik](https://github.com/Joxit/docker-registry-ui/tree/main/examples/traefik)
-- [Use docker-registry-ui with docker registry and Amazon s3](https://github.com/Joxit/docker-registry-ui/tree/main/examples/issue-75) ([#75](https://github.com/Joxit/docker-registry-ui/issues/75))
-- [FIX revproxy to registry does not work when published under non-root url](https://github.com/Joxit/docker-registry-ui/tree/main/examples/issue-73) ([#73](https://github.com/Joxit/docker-registry-ui/issues/73))
-- [Use docker-registry-ui with HTTPS](https://github.com/Joxit/docker-registry-ui/tree/main/examples/issue-20) ([#20](https://github.com/Joxit/docker-registry-ui/issues/20))
-- [Unable to push image when docker-registry-ui is used as a proxy on non 80 port](https://github.com/Joxit/docker-registry-ui/tree/main/examples/issue-88) ([#88](https://github.com/Joxit/docker-registry-ui/issues/88))
-- [Add custom headers bases on environment variable and/or file when the ui is used as proxy](https://github.com/Joxit/docker-registry-ui/tree/main/examples/proxy-headers) ([#89](https://github.com/Joxit/docker-registry-ui/pull/89))
-- [UI showing same sha256 content digest for all tags + Delete is not working](https://github.com/Joxit/docker-registry-ui/tree/main/examples/issue-116) ([#116](https://github.com/Joxit/docker-registry-ui/issues/116))
-- [Electron-based Standalone Application](https://github.com/Joxit/docker-registry-ui/tree/main/examples/electron) ([#129](https://github.com/Joxit/docker-registry-ui/pull/129))
-- [Use docker-registry-ui as proxy with read-only right](https://github.com/Joxit/docker-registry-ui/tree/main/examples/read-only-auth) ([#47](https://github.com/Joxit/docker-registry-ui/issues/47))
-- [Use DEFAULT_REGISTRIES and READ_ONLY_REGISTRIES](https://github.com/Joxit/docker-registry-ui/tree/main/examples/pr-219) ([#219](https://github.com/Joxit/docker-registry-ui/issues/219))
+- [Use docker-registry-ui as a proxy (use REGISTRY_URL)](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-proxy)
+- [Use docker-registry-ui as standalone (use URL)](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-standalone)
+- [Use docker-registry-ui with traefik](https://github.com/yorch/docker-registry-ui/tree/main/examples/traefik)
+- [Add custom headers bases on environment variable and/or file when the ui is used as proxy](https://github.com/yorch/docker-registry-ui/tree/main/examples/proxy-headers) ([#89](https://github.com/Joxit/docker-registry-ui/pull/89))
+- [Electron-based Standalone Application](https://github.com/yorch/docker-registry-ui/tree/main/examples/electron) ([#129](https://github.com/Joxit/docker-registry-ui/pull/129))
+- [Use docker-registry-ui as proxy with read-only right](https://github.com/yorch/docker-registry-ui/tree/main/examples/read-only-auth) ([#47](https://github.com/Joxit/docker-registry-ui/issues/47))
+- [Use docker-registry-ui on Kubernetes](https://github.com/yorch/docker-registry-ui/tree/main/examples/kubernetes)
+- [Use docker-registry-ui with token authentication via Keycloak](https://github.com/yorch/docker-registry-ui/tree/main/examples/token-auth-keycloak)
+- [Populate a local registry with test data](https://github.com/yorch/docker-registry-ui/tree/main/examples/populate-registry)
+
+## Development
+
+See [CLAUDE.md](https://github.com/yorch/docker-registry-ui/blob/main/CLAUDE.md) for build, test, and formatting commands, and
+[CONTRIBUTING.md](https://github.com/yorch/docker-registry-ui/blob/main/CONTRIBUTING.md) before opening an issue or pull request.
+
+## License
+
+AGPL-3.0. See [LICENSE](./LICENSE).

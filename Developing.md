@@ -5,7 +5,7 @@ This file contains tips to help you take (and understand) your first steps in Do
 ## Clone and install the repository
 
 ```bash
-git clone https://github.com/Joxit/docker-registry-ui.git
+git clone https://github.com/yorch/docker-registry-ui.git
 cd docker-registry-ui
 npm install
 ```

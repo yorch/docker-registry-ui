@@ -29,7 +29,7 @@ describe('repositories', () => {
           'alpine',
           { images: ['joxit/docker-registry-ui', 'joxit/docker-registry-ui/amd64', 'joxit/kokai'], repo: 'joxit/' },
           'nginx',
-        ]
+        ],
       );
     });
 
@@ -66,7 +66,7 @@ describe('repositories', () => {
           },
           'joxit/kokai',
           'nginx',
-        ]
+        ],
       );
     });
 
@@ -108,7 +108,7 @@ describe('repositories', () => {
             repo: 'joxit/',
           },
           'nginx',
-        ]
+        ],
       );
     });
   });

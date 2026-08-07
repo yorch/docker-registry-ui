@@ -1,11 +1,10 @@
 {
   "name": "docker-registry-ui",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "type": "module",
   "scripts": {
-    "format": "npm run format-html && npm run format-js",
-    "format-html": "find src rollup rollup.config.js -name '*.html' -exec prettier --config .prettierrc -w --parser html {} \\;",
-    "format-js": "find src rollup rollup.config.js -name '*.js' -exec prettier --config .prettierrc -w {} \\;",
+    "format": "biome format --write .",
+    "lint": "biome check .",
     "start": "rollup -c -w --environment ROLLUP_SERVE:true",
     "build": "rollup -c",
     "build:electron": "npm run build && cd examples/electron && npm install && npm run dist",
@@ -13,14 +12,18 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Joxit/docker-registry-ui.git"
+    "url": "https://github.com/yorch/docker-registry-ui.git"
   },
-  "author": "Jones Magloire (Joxit)",
+  "author": "Jorge Barnaby (yorch)",
   "license": "AGPL-3.0",
   "description": "A web UI for private docker registry",
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
     "@babel/core": "^7.20.7",
     "@babel/preset-env": "^7.20.2",
+    "@biomejs/biome": "2.5.7",
     "@riotjs/compiler": "^9.4.1",
     "@riotjs/observable": "^4.1.1",
     "@riotjs/route": "^9.2.1",
@@ -33,7 +36,6 @@
     "core-js": "^3.27.1",
     "jsdom": "^30.0.1",
     "mocha": "^11.2.0",
-    "prettier": "^3.4.2",
     "riot": "^9.4.4",
     "rollup": "^4.30.1",
     "rollup-plugin-app-utils": "^1.0.6",

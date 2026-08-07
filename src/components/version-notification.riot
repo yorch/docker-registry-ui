@@ -12,7 +12,7 @@
   <app-dialog title="Check for updates" opened="{ state.open }" on-close="{ onClose }">
     <p>The version <b>{ state.tag_name }</b> of Docker Registry UI is now available.</p>
     <p>You can download the latest version with docker.</p>
-    <code class="pull-command">joxit/docker-registry-ui:{ state.tag_name }</code>
+    <code class="pull-command">ghcr.io/yorch/docker-registry-ui:{ state.tag_name }</code>
     <div slot="footer">
       <button class="btn" onclick="{ onClose }" type="button">Close</button>
       <a
@@ -80,7 +80,7 @@
           }
         });
 
-        oReq.open('GET', 'https://api.github.com/repos/joxit/docker-registry-ui/releases/latest');
+        oReq.open('GET', 'https://api.github.com/repos/yorch/docker-registry-ui/releases/latest');
         oReq.send();
       },
       isNewestVersion,

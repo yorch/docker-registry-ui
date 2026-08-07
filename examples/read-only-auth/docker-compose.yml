@@ -9,7 +9,7 @@ services:
       - registry-ui-net
 
   ui:
-    image: joxit/docker-registry-ui:latest
+    image: ghcr.io/yorch/docker-registry-ui:latest
     ports:
       - 80:80
     environment:

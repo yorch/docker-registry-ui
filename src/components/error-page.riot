@@ -7,8 +7,8 @@
       <p>The contact point was <a href="{ props.url }">{ props.url }</a></p>
       <p>
         This may be caused by a misconfiguration of Docker Registry UI. Check the
-        <a href="https://joxit.dev/docker-registry-ui/#faq">FAQ</a> and
-        <a href="https://joxit.dev/docker-registry-ui/#available-options">Available options</a>
+        <a href="https://github.com/yorch/docker-registry-ui#faq">FAQ</a> and
+        <a href="https://github.com/yorch/docker-registry-ui#available-options">Available options</a>
       </p>
     </template>
     <template if="{ props.code === 'MIXED_CONTENT' }">
@@ -24,7 +24,10 @@
         `<span>NGINX_PROXY_PASS_URL</span>`. It's usually the name of your container, and it should be on the same
         network as the UI.
       </p>
-      <p>You can check the issue <a href="https://github.com/Joxit/docker-registry-ui/issues/277">#277</a>.</p>
+      <p>
+        See the <a href="https://github.com/yorch/docker-registry-ui#faq">FAQ</a> for more on running the UI
+        behind a reverse proxy.
+      </p>
     </template>
     <template if="{ props.code === 'INCORRECT_URL' }">
       <p>`{ props.url }` does not seems to be a correct URL, should starts with http:// or https://.</p>
@@ -35,11 +38,7 @@
         <a href="https://github.com/distribution/distribution/releases/tag/v2.8.2">v2.8.2</a> (May 11, 2023) and we
         cannot exceed this value without configuration.
       </p>
-      <p>
-        The new default value for the UI is <code>1000</code> since
-        <a href="https://github.com/Joxit/docker-registry-ui/milestone/6">2.5.0</a> and was <code>100000</code> from
-        <a href="https://github.com/Joxit/docker-registry-ui/issues/39">0.3.6</a>.
-      </p>
+      <p>The new default value for the UI is <code>1000</code> since 2.5.0, and was <code>100000</code> from 0.3.6.</p>
       <h3>Possible fixes</h3>
       <p>
         You can update the environment variable
@@ -57,8 +56,8 @@
         <span>docker registry UI</span> with the environment variable <code>CATALOG_ELEMENTS_LIMIT=1000</code>.
       </p>
       <p>
-        More about this issue:
-        <a href="https://github.com/Joxit/docker-registry-ui/issues/306">Joxit/docker-registry-ui#306</a>.
+        More about this:
+        <a href="https://github.com/yorch/docker-registry-ui#faq">FAQ</a>.
       </p>
     </template>
     <template if="{ props.code === 'CATALOG_BRANCHING_CONFIGURATION' }">

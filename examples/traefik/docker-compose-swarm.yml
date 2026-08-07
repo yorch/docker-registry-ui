@@ -12,7 +12,7 @@ services:
             constraints: [node.role == manager]
 
     ui:
-        image: joxit/docker-registry-ui:latest
+        image: ghcr.io/yorch/docker-registry-ui:latest
         environment:
             - DELETE_IMAGES=true
             - REGISTRY_TITLE=My Private Docker Registry

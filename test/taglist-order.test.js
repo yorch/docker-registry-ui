@@ -37,7 +37,7 @@ describe('taglist-order tests', () => {
 
     it('should throw error on incorrect values', () => {
       ['alpha-desc;alpha-asc', 'foobar'].forEach((e) =>
-        assert.throws(() => taglistOrderVariants(e), DockerRegistryUIError, `Did not throw on ${e}`)
+        assert.throws(() => taglistOrderVariants(e), DockerRegistryUIError, `Did not throw on ${e}`),
       );
     });
   });
@@ -52,14 +52,14 @@ describe('taglist-order tests', () => {
     it('should parse correctly `num-asc;alpha-asc` and variants', () => {
       const expected = { numAsc: true, alphaAsc: true, numFirst: true };
       ['asc', 'num-asc;alpha-asc', 'num-asc'].forEach((e) =>
-        assert.deepEqual(taglistOrderParser(e), expected, `wrong result for ${e}`)
+        assert.deepEqual(taglistOrderParser(e), expected, `wrong result for ${e}`),
       );
     });
 
     it('should parse correctly `alpha-desc;num-desc` and variants', () => {
       const expected = { numAsc: false, alphaAsc: false, numFirst: false };
       ['desc', 'alpha-desc;num-desc'].forEach((e) =>
-        assert.deepEqual(taglistOrderParser(e), expected, `wrong result for ${e}`)
+        assert.deepEqual(taglistOrderParser(e), expected, `wrong result for ${e}`),
       );
     });
 
