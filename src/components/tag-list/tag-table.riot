@@ -21,7 +21,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     registry-url="{ props.registryUrl }"
     on-notify="{ props.onNotify }"
     on-authentication="{ props.onAuthentication }"
-    tags="{ props.tags }"
+    tags="{ props.allTags || props.tags }"
     to-delete="{ state.toDelete }"
     is-registry-secured="{ props.isRegistrySecured }"
     on-image-deleted="{ props.onImageDeleted }"
@@ -49,27 +49,30 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         </th>
         <th
           class="is-sortable { !state.orderType ? (props.asc ? 'is-sorted-asc' : 'is-sorted-desc') : '' }"
-          onclick="{ onReverseOrder }"
           aria-sort="{ !state.orderType ? (props.asc ? 'ascending' : 'descending') : 'none' }"
         >
-          Tag
-          <i if="{ getSortIcon('tag') }" class="material-icons sort-icon">{ getSortIcon('tag') }</i>
+          <button class="table-sort" onclick="{ onReverseOrder }" type="button">
+            Tag
+            <i if="{ getSortIcon('tag') }" class="material-icons sort-icon" aria-hidden="true">{ getSortIcon('tag') }</i>
+          </button>
         </th>
         <th
           class="is-sortable { state.orderType === 'date' ? (state.desc ? 'is-sorted-desc' : 'is-sorted-asc') : '' }"
-          onclick="{ () => onPageReorder('date') }"
           aria-sort="{ state.orderType === 'date' ? (state.desc ? 'descending' : 'ascending') : 'none' }"
         >
-          Creation date
-          <i if="{ getSortIcon('date') }" class="material-icons sort-icon">{ getSortIcon('date') }</i>
+          <button class="table-sort" onclick="{ () => onPageReorder('date') }" type="button">
+            Creation Date
+            <i if="{ getSortIcon('date') }" class="material-icons sort-icon" aria-hidden="true">{ getSortIcon('date') }</i>
+          </button>
         </th>
         <th
           class="is-sortable { state.orderType === 'size' ? (state.desc ? 'is-sorted-desc' : 'is-sorted-asc') : '' }"
-          onclick="{ () => onPageReorder('size') }"
           aria-sort="{ state.orderType === 'size' ? (state.desc ? 'descending' : 'ascending') : 'none' }"
         >
-          Size
-          <i if="{ getSortIcon('size') }" class="material-icons sort-icon">{ getSortIcon('size') }</i>
+          <button class="table-sort" onclick="{ () => onPageReorder('size') }" type="button">
+            Size
+            <i if="{ getSortIcon('size') }" class="material-icons sort-icon" aria-hidden="true">{ getSortIcon('size') }</i>
+          </button>
         </th>
         <th class="architectures">Arch</th>
         <th class="digest-col" if="{ props.showContentDigest }">Content digest</th>
@@ -320,6 +323,26 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     :host th .sort-icon {
       font-size: 15px;
       vertical-align: middle;
+    }
+
+    :host .table-sort {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-weight: inherit;
+      padding: var(--space-1) 0;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+    }
+
+    :host .table-sort:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
 
     :host .select-col {

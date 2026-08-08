@@ -142,4 +142,28 @@ describe('tag list in a browser', function () {
     // no pagination controls at all.
     assert.equal(await page.$$eval('pagination button, pagination a', (els) => els.length), 0);
   });
+
+  it('should bypass cached tag data when the user refreshes', async () => {
+    await openTagList('nginx');
+    const refetch = page.waitForRequest((request) => request.url().endsWith('/v2/nginx/tags/list'));
+    await page.getByRole('button', { name: 'Refresh tags' }).click();
+    await refetch;
+    await page.waitForFunction(() => !document.querySelector('tag-list .refresh-status'));
+    assert.deepEqual(await tagsOn(page), ['1.26', '1.27', '1.27.3', 'latest', 'stable']);
+  });
+
+  it('should wait for deletion to finish before refreshing the list', async () => {
+    await openTagList('nginx');
+    const deleteButton = page.locator('remove-image button').first();
+    await page.waitForFunction(() => {
+      const button = document.querySelector('remove-image button');
+      return button && !button.disabled;
+    });
+    await deleteButton.click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    await page.waitForFunction(
+      () => document.querySelector('tag-list .empty-state h3')?.textContent.trim() === 'No tags',
+    );
+    assert.equal((await tagsOn(page)).length, 0);
+  });
 });

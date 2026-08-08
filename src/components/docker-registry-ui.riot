@@ -24,7 +24,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         </a>
         <breadcrumbs></breadcrumbs>
         <div class="topbar-spacer"></div>
-        <search-bar on-search="{ onSearch }"></search-bar>
+        <search-bar on-search="{ onSearch }" reset-token="{ state.searchReset || 0 }"></search-bar>
         <registry-menu
           if="{ props.singleRegistry !== 'true' }"
           registry-url="{ state.registryUrl }"
@@ -65,7 +65,11 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           message="{ error.message }"
           url="{ state.pageError.url }"
         ></error-page>
-        <router>
+        <button if="{ state.pageError }" class="btn error-retry" onclick="{ retryPage }" type="button">
+          <i class="material-icons" aria-hidden="true">refresh</i>
+          Retry
+        </button>
+        <router if="{ !state.pageError }">
           <route path="{baseRoute}">
             <catalog
               registry-url="{ state.registryUrl }"
@@ -74,6 +78,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
               on-notify="{ notifySnackbar }"
               on-clear-page-error="{ clearPageError }"
               filter-results="{ state.filter }"
+              on-clear-search="{ clearSearch }"
               on-authentication="{ onAuthentication }"
               show-catalog-nb-tags="{ falsy(props.showCatalogNbTags) }"
               catalog-default-expanded="{ truthy(props.catalogDefaultExpanded) }"
@@ -93,6 +98,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
               is-image-remove-activated="{ truthy(props.isImageRemoveActivated) }"
               on-notify="{ notifySnackbar }"
               filter-results="{ state.filter }"
+              on-clear-search="{ clearSearch }"
               on-authentication="{ onAuthentication }"
               use-control-cache-header="{ truthy(props.useControlCacheHeader) }"
               taglist-order="{ props.taglistOrder }"
@@ -254,6 +260,15 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         this.update({
           filter: value,
         });
+      },
+      clearSearch() {
+        this.update({
+          filter: '',
+          searchReset: (this.state.searchReset || 0) + 1,
+        });
+      },
+      retryPage() {
+        this.update({ pageError: undefined });
       },
       onThemeChange() {
         const theme = this.state.themeSwitch ? 'light' : 'dark';

@@ -6,7 +6,8 @@
     tags-per-page="{ props.tagsPerPage }"
     on-notify="{ () => {} }"
     on-authentication="{ () => {} }"
-    filter-results=""
+    filter-results="{ state.filter }"
+    on-clear-search="{ () => update({ filter: '' }) }"
     taglist-order=""
     show-content-digest="{ false }"
     show-tag-history="{ false }"
@@ -21,7 +22,7 @@
     export default {
       components: { TagList },
       onBeforeMount(props) {
-        this.state = { image: props.image };
+        this.state = { image: props.image, filter: props.filter || '' };
       },
     };
   </script>

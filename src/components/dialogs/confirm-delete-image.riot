@@ -7,7 +7,7 @@
  (at your option) any later version.
 -->
 <confirm-delete-image>
-  <app-dialog title="These images will be deleted" opened="{ props.opened }" on-close="{ props.onClick }">
+  <app-dialog title="These images will be deleted" opened="{ props.opened }" on-close="{ close }">
     <ul class="delete-list">
       <li each="{ image in displayImagesToDelete(props.toDelete, props.tags) }">{ image.name }:{ image.tag }</li>
     </ul>
@@ -16,14 +16,15 @@
       <code>registry garbage-collect config.yml</code> on your registry to free the storage.
     </p>
     <div slot="footer">
-      <button class="btn" onclick="{ props.onClick }" type="button">Cancel</button>
-      <button class="btn btn--danger" onclick="{ deleteImages }" type="button">Delete</button>
+      <button class="btn" onclick="{ close }" disabled="{ state.deleting }" type="button">Cancel</button>
+      <button class="btn btn--danger" onclick="{ deleteImages }" disabled="{ state.deleting }" type="button">
+        { state.deleting ? 'Deleting…' : 'Delete' }
+      </button>
     </div>
   </app-dialog>
   <script>
     import { Http } from '../../scripts/http';
     import { invalidateRepository } from '../../scripts/cache-request';
-    import router from '../../scripts/router';
     import { ERROR_CAN_NOT_READ_CONTENT_DIGEST } from '../../scripts/utils';
     export default {
       displayImagesToDelete(toDelete, tags) {
@@ -35,78 +36,100 @@
         });
         return tags.filter((image) => contentDigests.has(image.contentDigest));
       },
-      deleteImages() {
-        this.props.toDelete.forEach((image) => this.getContentDigestThenDelete(image, this.props));
-        this.props.onImageDeleted();
+      close() {
+        if (!this.state.deleting) this.props.onClick();
+      },
+      async deleteImages() {
+        if (this.state.deleting) return;
+        this.update({ deleting: true });
+        const selected = Array.from(this.props.toDelete);
+        const results = await Promise.all(selected.map((image) => this.getContentDigestThenDelete(image, this.props)));
+        results.forEach((deleted, index) => {
+          if (deleted) {
+            const digest = selected[index].contentDigest;
+            selected.filter((image) => image.contentDigest === digest).forEach((image) => this.props.toDelete.delete(image));
+          }
+        });
+        if (results.some(Boolean)) {
+          await this.props.onImageDeleted();
+        }
+        this.update({ deleting: false });
+        this.props.onClick();
       },
       getContentDigestThenDelete({ name, tag }, opts) {
-        const { registryUrl, onNotify, onAuthentication, isRegistrySecured } = opts;
-        // Reads the digest this image is about to be deleted by, so it has to
-        // see the registry as it is now: a cached digest from before a re-push
-        // would delete the previous manifest and leave the current one.
-        const oReq = new Http({ onAuthentication, withCredentials: isRegistrySecured, noCache: true });
-        const self = this;
-        oReq.addEventListener('loadend', function () {
-          if (this.status === 200 || this.status === 202) {
-            oReq.getContentDigest(function (contentDigest) {
-              if (!contentDigest) {
-                onNotify(ERROR_CAN_NOT_READ_CONTENT_DIGEST);
-              } else {
-                self.deleteImage({ name, tag, contentDigest }, opts);
-              }
-            });
-          } else if (this.status === 404) {
-            onNotify(`Manifest for ${name}:${tag} not found`, true);
-          } else {
-            onNotify(this.responseText);
-          }
+        return new Promise((resolve) => {
+          const { registryUrl, onNotify, onAuthentication, isRegistrySecured } = opts;
+          // Reads the digest this image is about to be deleted by, so it has to
+          // see the registry as it is now: a cached digest from before a re-push
+          // would delete the previous manifest and leave the current one.
+          const oReq = new Http({ onAuthentication, withCredentials: isRegistrySecured, noCache: true });
+          const self = this;
+          oReq.addEventListener('loadend', function () {
+            if (this.status === 200 || this.status === 202) {
+              oReq.getContentDigest(function (contentDigest) {
+                if (!contentDigest) {
+                  onNotify(ERROR_CAN_NOT_READ_CONTENT_DIGEST);
+                  resolve(false);
+                } else {
+                  self.deleteImage({ name, tag, contentDigest }, opts).then(resolve);
+                }
+              });
+            } else if (this.status === 404) {
+              onNotify(`Manifest for ${name}:${tag} not found`, true);
+              resolve(false);
+            } else {
+              onNotify(this.responseText);
+              resolve(false);
+            }
+          });
+          oReq.open('GET', `${registryUrl}/v2/${name}/manifests/${tag}`);
+          oReq.setRequestHeader(
+            'Accept',
+            'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.index.v1+json',
+          );
+          oReq.send();
         });
-        oReq.open('GET', `${registryUrl}/v2/${name}/manifests/${tag}`);
-        oReq.setRequestHeader(
-          'Accept',
-          'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.index.v1+json'
-        );
-        oReq.send();
       },
       deleteImage({ name, tag, contentDigest }, opts) {
-        const { registryUrl, ignoreError, onNotify, onAuthentication, onClick, isRegistrySecured } = opts;
-        const oReq = new Http({ onAuthentication, withCredentials: isRegistrySecured });
-        oReq.addEventListener('loadend', function () {
-          if (this.status === 200 || this.status === 202) {
-            // tag-list refetches a second from now; without this it would be
-            // served the cached list and show the tag as though nothing
-            // happened.
-            invalidateRepository(registryUrl, name);
-            router.taglist(name);
-            onNotify(`Deleting ${name}:${tag} image. Run \`registry garbage-collect config.yml\` on your registry`);
-          } else if (this.status === 404) {
-            ignoreError ||
-              onNotify({
-                message: 'Digest not found for this image in your registry.',
-                isError: true,
-              });
-          } else {
-            onNotify(this.responseText);
-          }
-          onClick();
-        });
-        oReq.open('DELETE', `${registryUrl}/v2/${name}/manifests/${contentDigest}`);
-        oReq.setRequestHeader(
-          'Accept',
-          'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json'
-        );
-        oReq.addEventListener('error', function () {
-          const credMsg = this.withCredentials
-            ? ' When you use credentials on a different hostname, the registry server may fail preflight requests. Check FAQ and issue #104.'
-            : '';
-          onNotify({
-            message:
-              "An error occurred when deleting image. Check if your server accept DELETE methods Access-Control-Allow-Methods: ['DELETE']." +
-              credMsg,
-            isError: true,
+        return new Promise((resolve) => {
+          const { registryUrl, ignoreError, onNotify, onAuthentication, isRegistrySecured } = opts;
+          const oReq = new Http({ onAuthentication, withCredentials: isRegistrySecured });
+          oReq.addEventListener('loadend', function () {
+            if (this.status === 200 || this.status === 202) {
+              invalidateRepository(registryUrl, name);
+              onNotify(`Deleted ${name}:${tag}. Run \`registry garbage-collect config.yml\` on your registry`);
+              resolve(true);
+            } else if (this.status === 404) {
+              ignoreError ||
+                onNotify({
+                  message: 'Digest not found for this image in your registry.',
+                  isError: true,
+                });
+              resolve(false);
+            } else {
+              onNotify(this.responseText);
+              resolve(false);
+            }
           });
+          oReq.open('DELETE', `${registryUrl}/v2/${name}/manifests/${contentDigest}`);
+          oReq.setRequestHeader(
+            'Accept',
+            'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json',
+          );
+          oReq.addEventListener('error', function () {
+            const credMsg = this.withCredentials
+              ? ' When you use credentials on a different hostname, the registry server may fail preflight requests. Check FAQ and issue #104.'
+              : '';
+            onNotify({
+              message:
+                "An error occurred when deleting image. Check if your server accept DELETE methods Access-Control-Allow-Methods: ['DELETE']." +
+                credMsg,
+              isError: true,
+            });
+            resolve(false);
+          });
+          oReq.send();
         });
-        oReq.send();
       },
     };
   </script>

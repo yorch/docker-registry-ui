@@ -15,7 +15,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <tag-list>
-  <div class="panel">
+  <div class="panel" aria-busy="{ !state.loadend || state.refreshing ? 'true' : 'false' }">
     <div class="panel-header">
       <div>
         <h2 class="panel-title">
@@ -24,26 +24,46 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         </h2>
         <p class="source-hint">Sourced from { state.registryName + '/' + props.image }</p>
       </div>
-      <span class="badge badge--accent">{ state.tags.length } tags</span>
+      <div class="tag-actions">
+        <span if="{ state.loadend }" class="badge badge--accent">
+          { props.filterResults ? filteredTags().length + ' of ' + state.tags.length : state.tags.length } tags
+        </span>
+        <button
+          class="btn btn--sm"
+          onclick="{ refresh }"
+          disabled="{ !state.loadend || state.refreshing }"
+          aria-label="Refresh tags"
+          type="button"
+        >
+          <i class="material-icons" aria-hidden="true">refresh</i>
+          { state.refreshing ? 'Refreshing…' : 'Refresh' }
+        </button>
+      </div>
     </div>
   </div>
 
-  <div class="panel" if="{ !state.loadend }">
+  <div class="panel" if="{ !state.loadend }" role="status" aria-label="Loading tags">
     <div class="skeleton-row" each="{ i in skeletonRows }">
-      <span class="skeleton skeleton-line { i % 3 === 0 ? 'wide' : '' }"></span>
-      <span class="skeleton skeleton-line short"></span>
+      <span aria-hidden="true" class="skeleton skeleton-line { i % 3 === 0 ? 'wide' : '' }"></span>
+      <span aria-hidden="true" class="skeleton skeleton-line short"></span>
     </div>
+    <span class="sr-only">Loading tags…</span>
   </div>
+
+  <p if="{ state.refreshing }" class="refresh-status" role="status">Refreshing tags…</p>
 
   <div if="{ state.loadend && !hasVisibleTags() }" class="empty-state">
-    <span class="empty-icon"><i class="material-icons">search_off</i></span>
-    <h3>No tags found</h3>
-    <p>This repository has no tags, or no tag matches the current search.</p>
+    <span class="empty-icon"><i class="material-icons" aria-hidden="true">search_off</i></span>
+    <h3>{ props.filterResults ? 'No matching tags' : 'No tags' }</h3>
+    <p if="{ props.filterResults }">No tag matches “{ props.filterResults }”.</p>
+    <p if="{ !props.filterResults }">This repository has no tags yet.</p>
+    <button if="{ props.filterResults }" class="btn" onclick="{ props.onClearSearch }" type="button">Clear Search</button>
   </div>
 
-  <div class="table-wrap" if="{ state.loadend }">
+  <div class="table-wrap" if="{ state.loadend && hasVisibleTags() }">
     <tag-table
-      tags="{state.tags}"
+      tags="{ filteredTags() }"
+      all-tags="{ state.tags }"
       asc="{state.asc}"
       page="{ state.page }"
       show-content-digest="{props.showContentDigest}"
@@ -53,7 +73,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       registry-url="{ props.registryUrl }"
       pull-url="{ props.pullUrl }"
       on-notify="{ props.onNotify }"
-      filter-results="{ props.filterResults }"
+      filter-results=""
       on-authentication="{ props.onAuthentication }"
       tags-per-page="{ props.tagsPerPage }"
       is-registry-secured="{ props.isRegistrySecured }"
@@ -61,20 +81,22 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     ></tag-table>
   </div>
 
-  <pagination
-    pages="{ getPageLabels(state.page, getNumPages(state.tags, props.tagsPerPage)) }"
+  <pagination if="{ state.loadend && hasVisibleTags() && getNumPages(filteredTags(), props.tagsPerPage) > 1 }"
+    pages="{ getPageLabels(state.page, getNumPages(filteredTags(), props.tagsPerPage)) }"
     onPageUpdate="{onPageUpdate}"
   ></pagination>
 
   <script>
     import { Http } from '../../scripts/http';
     import { DockerImage } from '../../scripts/docker-image';
-    import { getNumPages, getPageLabels, getPage } from '../../scripts/utils';
+    import { getNumPages, getPageLabels } from '../../scripts/utils';
     import { matchSearch } from '../search-bar.riot';
     import Pagination from './pagination.riot';
     import TagTable from './tag-table.riot';
     import router from '../../scripts/router';
     import { getTagComparator, taglistOrderParser } from '../../scripts/taglist-order';
+    import { invalidateRepository } from '../../scripts/cache-request';
+    import { requestPool } from '../../scripts/request-pool';
 
     export default {
       components: {
@@ -89,6 +111,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           loadend: false,
           asc: true,
           page: router.getPageQueryParam() || 1,
+          loadedFilter: props.filterResults,
         };
         try {
           this.state.taglistOrder = taglistOrderParser(props.taglistOrder);
@@ -111,24 +134,48 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       onUpdated(props, state) {
         if (props.image !== state.loadedImage) {
           this.display(props, state);
+        } else if (props.filterResults !== state.loadedFilter) {
+          state.loadedFilter = props.filterResults;
+          if (state.page !== 1) {
+            this.update({ page: 1 });
+            router.updatePageQueryParam(1);
+          }
         }
       },
-      display(props, state) {
+      onBeforeUnmount() {
+        this.activeRequest?.abort();
+        requestPool.drop();
+        this.requestGeneration = (this.requestGeneration || 0) + 1;
+      },
+      refresh() {
+        this.display(this.props, this.state, true);
+      },
+      display(props, state, refresh = false) {
         // Claimed before anything can trigger a render, so the update() calls
         // below cannot re-enter through onUpdated and start a second request.
         state.loadedImage = props.image;
         // Read from `this` rather than the captured arguments: by the time a
         // reload fires, the component may have moved on to another repository.
-        state.reload = () => setTimeout(() => this.display(this.props, this.state), 1000);
-        state.loadend = false;
+        state.reload = () => this.display(this.props, this.state, true);
+        const generation = (this.requestGeneration || 0) + 1;
+        this.requestGeneration = generation;
+        this.activeRequest?.abort();
+        if (refresh) {
+          invalidateRepository(props.registryUrl, props.image);
+          this.update({ refreshing: true });
+        } else {
+          state.loadend = false;
+        }
         state.page = router.getPageQueryParam() || 1;
-        state.tags = [];
+        if (!refresh) state.tags = [];
         const self = this;
         const oReq = new Http({
           onAuthentication: props.onAuthentication,
           withCredentials: props.isRegistrySecured,
+          noCache: refresh,
         });
         oReq.addEventListener('load', function () {
+          if (generation !== self.requestGeneration) return;
           if (this.status === 200) {
             const tags = (JSON.parse(this.responseText).tags || [])
               .map(
@@ -155,21 +202,25 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           }
         });
         oReq.addEventListener('error', function () {
+          if (generation !== self.requestGeneration) return;
           self.props.onNotify(this.getErrorMessage(), true);
           state.tags = [];
         });
         oReq.addEventListener('loadend', function () {
+          if (generation !== self.requestGeneration) return;
           self.update({
             loadend: true,
+            refreshing: false,
           });
         });
         oReq.open('GET', props.registryUrl + '/v2/' + props.image + '/tags/list');
+        this.activeRequest = oReq;
         oReq.send();
         state.asc = true;
       },
 
       onPageUpdate(idx) {
-        const labels = getPageLabels(this.state.page, getNumPages(this.state.tags, this.props.tagsPerPage));
+        const labels = getPageLabels(this.state.page, getNumPages(this.filteredTags(), this.props.tagsPerPage));
         const page = labels[idx].page;
         this.update({
           page: page,
@@ -210,8 +261,10 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         this.update();
       },
       hasVisibleTags() {
-        const page = getPage(this.state.tags, this.state.page, this.props.tagsPerPage);
-        return page.some((image) => matchSearch(this.props.filterResults, image.tag));
+        return this.filteredTags().length > 0;
+      },
+      filteredTags() {
+        return this.state.tags.filter((image) => matchSearch(this.props.filterResults, image.tag));
       },
       getPageLabels,
       getNumPages,
@@ -227,6 +280,12 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
     :host .table-wrap {
       margin-top: var(--space-4);
+    }
+
+    :host .tag-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
     }
   </style>
 </tag-list>

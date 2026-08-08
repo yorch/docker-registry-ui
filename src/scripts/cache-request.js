@@ -18,19 +18,21 @@ const TAGS_LIST_REGEX = /\/v2\/.+\/tags\/list(\?.*)?$/;
 const TAG_MANIFEST_REGEX = /\/v2\/.+\/manifests\/[^/]+$/;
 
 export const MUTABLE_TTL_MS = 30000;
+export const MAX_CACHE_ENTRIES = 200;
+export const MAX_CACHE_BYTES = 4 * 1024 * 1024;
 
 // Returns the storage key and time-to-live for a request, or undefined when the
 // request is not cacheable at all.
-const cacheEntryFor = (method, url) => {
+const cacheEntryFor = (method, url, variant = '') => {
   if (method !== 'GET' || !url) {
     return undefined;
   }
   const immutable = IMMUTABLE_REGEX.exec(url);
   if (immutable) {
-    return { key: `${NAMESPACE}sha:${immutable[0]}`, ttl: null };
+    return { key: `${NAMESPACE}sha:${immutable[0]}:v:${encodeURIComponent(variant)}`, ttl: null };
   }
   if (TAGS_LIST_REGEX.test(url) || TAG_MANIFEST_REGEX.test(url)) {
-    return { key: `${NAMESPACE}url:${url}`, ttl: MUTABLE_TTL_MS };
+    return { key: `${NAMESPACE}url:${url}:v:${encodeURIComponent(variant)}`, ttl: MUTABLE_TTL_MS };
   }
   return undefined;
 };
@@ -69,8 +71,37 @@ const sweepExpired = (now) => {
   });
 };
 
-export const getFromCache = (method, url, now = Date.now()) => {
-  const entry = cacheEntryFor(method, url);
+const enforceBudget = (incomingKey, incomingValue) => {
+  if (incomingKey.length + incomingValue.length > MAX_CACHE_BYTES) {
+    return false;
+  }
+  const entries = ourKeys()
+    .filter((key) => key !== incomingKey)
+    .map((key) => {
+      try {
+        const value = sessionStorage.getItem(key) || '';
+        const envelope = JSON.parse(value);
+        return { key, bytes: key.length + value.length, accessed: envelope?.a || 0 };
+      } catch (_error) {
+        remove(key);
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.accessed - right.accessed);
+  let bytes = incomingKey.length + incomingValue.length + entries.reduce((total, entry) => total + entry.bytes, 0);
+  let count = entries.length + 1;
+  while (entries.length && (count > MAX_CACHE_ENTRIES || bytes > MAX_CACHE_BYTES)) {
+    const oldest = entries.shift();
+    remove(oldest.key);
+    bytes -= oldest.bytes;
+    count--;
+  }
+  return count <= MAX_CACHE_ENTRIES && bytes <= MAX_CACHE_BYTES;
+};
+
+export const getFromCache = (method, url, now = Date.now(), variant = '') => {
+  const entry = cacheEntryFor(method, url, variant);
   if (!entry) {
     return undefined;
   }
@@ -88,6 +119,10 @@ export const getFromCache = (method, url, now = Date.now()) => {
       remove(entry.key);
       return undefined;
     }
+    envelope.a = now;
+    try {
+      sessionStorage.setItem(entry.key, JSON.stringify(envelope));
+    } catch (_error) {}
     return { responseText: envelope.r, dockerContentdigest: envelope.d };
   } catch (e) {
     remove(entry.key);
@@ -95,8 +130,8 @@ export const getFromCache = (method, url, now = Date.now()) => {
   }
 };
 
-export const setCache = (method, url, { responseText, dockerContentdigest }, now = Date.now()) => {
-  const entry = cacheEntryFor(method, url);
+export const setCache = (method, url, { responseText, dockerContentdigest }, now = Date.now(), variant = '') => {
+  const entry = cacheEntryFor(method, url, variant);
   if (!entry) {
     return;
   }
@@ -104,8 +139,13 @@ export const setCache = (method, url, { responseText, dockerContentdigest }, now
     r: responseText,
     d: dockerContentdigest === undefined ? null : dockerContentdigest,
     e: entry.ttl === null ? null : now + entry.ttl,
+    a: now,
   });
   try {
+    sweepExpired(now);
+    if (!enforceBudget(entry.key, envelope)) {
+      return;
+    }
     sessionStorage.setItem(entry.key, envelope);
   } catch (e) {
     // Out of room. Drop what has already expired and try once more; if it still
@@ -124,6 +164,15 @@ export const invalidateRepository = (registryUrl, name) => {
   const marker = `${registryUrl}/v2/${name}/`;
   ourKeys().forEach((key) => {
     if (key.startsWith(`${NAMESPACE}url:`) && key.includes(marker)) {
+      remove(key);
+    }
+  });
+};
+
+export const invalidateRegistry = (registryUrl) => {
+  const marker = `${NAMESPACE}url:${registryUrl}/v2/`;
+  ourKeys().forEach((key) => {
+    if (key.startsWith(marker)) {
       remove(key);
     }
   });

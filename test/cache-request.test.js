@@ -1,4 +1,11 @@
-import { getFromCache, setCache, invalidateRepository, MUTABLE_TTL_MS } from '../src/scripts/cache-request.js';
+import {
+  getFromCache,
+  setCache,
+  invalidateRepository,
+  invalidateRegistry,
+  MUTABLE_TTL_MS,
+  MAX_CACHE_ENTRIES,
+} from '../src/scripts/cache-request.js';
 import assert from 'assert';
 
 const REGISTRY = 'https://registry.example.com';
@@ -60,6 +67,14 @@ describe('cache-request', () => {
       setCache('GET', tagsList(REGISTRY, 'nginx'), body('nginx-tags'));
       setCache('GET', tagsList(REGISTRY, 'redis'), body('redis-tags'));
       assert.equal(getFromCache('GET', tagsList(REGISTRY, 'redis')).responseText, 'redis-tags');
+    });
+
+    it('should keep negotiated representations separate', () => {
+      const url = tagManifest(REGISTRY, 'nginx', 'latest');
+      setCache('GET', url, body('docker'), Date.now(), 'accept=docker');
+      setCache('GET', url, body('oci'), Date.now(), 'accept=oci');
+      assert.equal(getFromCache('GET', url, Date.now(), 'accept=docker').responseText, 'docker');
+      assert.equal(getFromCache('GET', url, Date.now(), 'accept=oci').responseText, 'oci');
     });
   });
 
@@ -123,12 +138,31 @@ describe('cache-request', () => {
     });
   });
 
+  describe('invalidateRegistry', () => {
+    it('should drop mutable entries for one registry only', () => {
+      setCache('GET', tagsList(REGISTRY, 'nginx'), body('first'));
+      setCache('GET', tagsList(OTHER_REGISTRY, 'nginx'), body('second'));
+      invalidateRegistry(REGISTRY);
+      assert.equal(getFromCache('GET', tagsList(REGISTRY, 'nginx')), undefined);
+      assert.equal(getFromCache('GET', tagsList(OTHER_REGISTRY, 'nginx')).responseText, 'second');
+    });
+  });
+
   describe('resilience', () => {
     it('should report a miss for a corrupted entry rather than throwing', () => {
       setCache('GET', tagsList(REGISTRY, 'nginx'), body('tags'));
       const key = Object.keys(sessionStorage).find((k) => k.includes('tags/list'));
       sessionStorage.setItem(key, 'not json');
       assert.equal(getFromCache('GET', tagsList(REGISTRY, 'nginx')), undefined);
+    });
+
+    it('should evict least-recently-used entries when the cache reaches its entry budget', () => {
+      for (let i = 0; i <= MAX_CACHE_ENTRIES; i++) {
+        const digest = `sha256:${i.toString(16).padStart(64, '0')}`;
+        setCache('GET', `${REGISTRY}/v2/nginx/manifests/${digest}`, body(String(i)), i + 1);
+      }
+      assert.ok(sessionStorage.length <= MAX_CACHE_ENTRIES);
+      assert.equal(getFromCache('GET', `${REGISTRY}/v2/nginx/manifests/${'sha256:' + '0'.repeat(64)}`), undefined);
     });
   });
 });
