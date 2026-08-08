@@ -2,6 +2,7 @@ import { component } from 'riot';
 import { createMockRegistry } from '../dev/mock-registry/server.js';
 import TagListHost from './fixtures/tag-list-host.riot';
 import assert from 'assert';
+import { fixtures } from '../dev/mock-registry/fixtures.js';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -76,6 +77,20 @@ describe('tag list navigation', function () {
     assert.ok(!tagsShown(root).includes('stable'), 'a tag only nginx has must not survive the switch');
   });
 
+  it('should ignore a superseded response that arrives after the current repository', async () => {
+    await registry.close();
+    registry = await createMockRegistry({
+      port: 0,
+      fixtures: fixtures.map((fixture) => (fixture.name === 'nginx' ? { ...fixture, delayMs: 300 } : fixture)),
+    });
+    const host = mountHost('nginx');
+    host.update({ image: 'oci-index' });
+    await waitForTags(root);
+    assert.deepEqual(tagsShown(root), ['latest', 'v3']);
+    await wait(400);
+    assert.deepEqual(tagsShown(root), ['latest', 'v3'], 'the delayed nginx response must be ignored');
+  });
+
   it('should show the empty state when switching to a repository with no tags', async () => {
     const host = mountHost('nginx');
     await waitForTags(root);
@@ -85,6 +100,22 @@ describe('tag list navigation', function () {
       await wait(50);
     }
     assert.equal(root.querySelectorAll('tag-table tbody tr').length, 0);
+  });
+
+  it('should search all tags before pagination', async () => {
+    const host = component(TagListHost)(root, {
+      image: 'exactly-100',
+      registryUrl: registry.url,
+      tagsPerPage: '10',
+    });
+    for (let i = 0; i < 100 && tagsShown(root).length !== 10; i++) {
+      await wait(50);
+    }
+    host.update({ filter: 'tag-0099' });
+    for (let i = 0; i < 100 && tagsShown(root)[0] !== 'tag-0099'; i++) {
+      await wait(50);
+    }
+    assert.deepEqual(tagsShown(root), ['tag-0099']);
   });
 
   // Switching repositories must not restart the request loop on every render.

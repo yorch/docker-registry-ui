@@ -23,23 +23,21 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       <div
         class="list-row { state.images ? 'is-group' : 'is-leaf' }"
         if="{ isRowVisible(props, state) }"
-        onclick="{ state.images ? onClick : null }"
       >
         <a if="{ state.image }" class="row-main" href="{ router.taglist(state.image) }">
           <i class="material-icons row-icon">send</i>
           <span class="row-label">{ state.image }</span>
         </a>
-        <div
+        <button
           if="{ state.images }"
           class="row-main"
-          role="button"
-          tabindex="0"
           aria-expanded="{ state.expanded }"
-          onkeyup="{ onKeyUp }"
+          onclick="{ onClick }"
+          type="button"
         >
           <i class="material-icons row-icon">folder</i>
           <span class="row-label">{ state.repo }</span>
-        </div>
+        </button>
         <span class="row-meta">
           <span if="{ state.images }" class="badge" title="{ state.nImages } images">{ state.nImages }</span>
           <span
@@ -157,12 +155,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           });
         }
       },
-      onKeyUp(event) {
-        if (event.keyCode === 13 || event.keyCode === 32) {
-          event.preventDefault();
-          this.onClick();
-        }
-      },
       matchSearch,
       router,
     };
@@ -190,6 +182,10 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       color: inherit;
       cursor: pointer;
       border-radius: var(--radius-sm);
+      border: 0;
+      background: transparent;
+      padding: 0;
+      text-align: left;
     }
 
     :host .row-main:hover {

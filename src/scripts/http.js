@@ -88,11 +88,18 @@ export class Http {
               req.send();
             });
           } else {
-            this.status === 200 &&
-              setCache(self._method, self._url, {
-                responseText: this.responseText,
-                dockerContentdigest: this.getResponseHeader('Docker-Content-Digest'),
-              });
+            (this.status === 200 || this.status === 202) &&
+              !self.withCredentials &&
+              setCache(
+                self._method,
+                self._url,
+                {
+                  responseText: this.responseText,
+                  dockerContentdigest: this.getResponseHeader('Docker-Content-Digest'),
+                },
+                Date.now(),
+                self.cacheVariant(),
+              );
             f.bind(this)();
           }
         });
@@ -131,14 +138,23 @@ export class Http {
   }
 
   send() {
-    if (!this.noCache) {
-      const cache = getFromCache(this._method, this._url);
+    if (!this.noCache && !this.withCredentials) {
+      const cache = getFromCache(this._method, this._url, Date.now(), this.cacheVariant());
       if (cache && cache.responseText) {
         this.cache = cache;
         return this.replayFromCache(cache);
       }
     }
     this.oReq.send();
+  }
+
+  abort() {
+    this.oReq.abort();
+  }
+
+  cacheVariant() {
+    const accept = this._headers.Accept || this._headers.accept || '';
+    return accept ? `accept=${accept}` : '';
   }
 
   // A real 200 fires `load` and then `loadend`. Replaying only `loadend` works

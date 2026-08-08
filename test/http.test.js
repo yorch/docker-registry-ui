@@ -92,4 +92,22 @@ describe('Http cache replay', () => {
     req.send();
     assert.deepEqual(seen, [], 'no replay should happen when the cache is bypassed');
   });
+
+  it('should bypass the application cache for credentialed requests', () => {
+    seed(TAGS_URL, '{"tags":["latest"]}');
+    const { req, seen } = recordingRequest({ withCredentials: true });
+    req.open('GET', TAGS_URL);
+    req.send();
+    assert.deepEqual(seen, [], 'credentialed data must not be replayed from a prior identity');
+  });
+
+  it('should vary cached manifests by Accept header', () => {
+    const manifestUrl = `${REGISTRY}/v2/nginx/manifests/latest`;
+    setCache('GET', manifestUrl, { responseText: 'oci', dockerContentdigest: DIGEST }, Date.now(), 'accept=oci');
+    const { req, seen } = recordingRequest({});
+    req.open('GET', manifestUrl);
+    req.setRequestHeader('Accept', 'docker');
+    req.send();
+    assert.deepEqual(seen, [], 'a different negotiated representation must miss the cache');
+  });
 });

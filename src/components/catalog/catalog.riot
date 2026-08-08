@@ -15,7 +15,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <catalog>
-  <div class="panel catalog-header">
+  <div class="panel catalog-header" aria-busy="{ !state.loadend || state.refreshing ? 'true' : 'false' }">
     <div class="panel-header">
       <div class="catalog-title">
         <h2 class="panel-title">
@@ -32,26 +32,47 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         </label>
       </div>
       <div class="catalog-stats">
-        <span class="badge badge--accent">{ state.nImages } images</span>
-        <span class="badge badge--neutral">{ state.nRepositories } repositories</span>
+        <span if="{ state.loadend }" class="badge badge--accent">{ state.nImages } images</span>
+        <span if="{ state.loadend }" class="badge badge--neutral">{ state.nRepositories } repositories</span>
+        <button
+          class="btn btn--sm"
+          onclick="{ refresh }"
+          disabled="{ !state.loadend || state.refreshing }"
+          aria-label="Refresh repositories"
+          type="button"
+        >
+          <i class="material-icons" aria-hidden="true">refresh</i>
+          { state.refreshing ? 'Refreshing…' : 'Refresh' }
+        </button>
       </div>
     </div>
   </div>
 
-  <div class="panel" if="{ !state.loadend }">
+  <div class="panel" if="{ !state.loadend }" role="status" aria-label="Loading repositories">
     <div class="skeleton-row" each="{ i in skeletonRows }">
-      <span class="skeleton skeleton-icon"></span>
-      <span class="skeleton skeleton-line { i % 3 === 0 ? 'wide' : '' }"></span>
+      <span aria-hidden="true" class="skeleton skeleton-icon"></span>
+      <span aria-hidden="true" class="skeleton skeleton-line { i % 3 === 0 ? 'wide' : '' }"></span>
     </div>
+    <span class="sr-only">Loading repositories…</span>
   </div>
 
-  <div if="{ state.loadend && state.repositories.length === 0 }" class="empty-state">
-    <span class="empty-icon"><i class="material-icons">inbox</i></span>
-    <h3>No repositories</h3>
-    <p>This registry has no repositories yet. Push your first image to get started.</p>
+  <p if="{ state.refreshing }" class="refresh-status" role="status">Refreshing repository data…</p>
+
+  <p if="{ state.loadend && hasPendingTagCounts() && !hasVisibleRepositories() }" class="refresh-status" role="status">
+    Checking repositories for tags…
+  </p>
+
+  <div if="{ state.loadend && !hasPendingTagCounts() && !hasVisibleRepositories() }" class="empty-state">
+    <span class="empty-icon"><i class="material-icons" aria-hidden="true">{ props.filterResults ? 'search_off' : 'inbox' }</i></span>
+    <h3>{ props.filterResults ? 'No matching repositories' : state.repositories.length ? 'No tagged repositories' : 'No repositories' }</h3>
+    <p if="{ props.filterResults }">No repository matches “{ props.filterResults }”.</p>
+    <p if="{ !props.filterResults && state.repositories.length === 0 }">This registry has no repositories yet. Push your first image to get started.</p>
+    <p if="{ !props.filterResults && state.repositories.length > 0 }">Every repository is currently tagless.</p>
+    <button if="{ props.filterResults }" class="btn" onclick="{ props.onClearSearch }" type="button">Clear Search</button>
+    <button if="{ !props.filterResults && state.repositories.length > 0 }" class="btn" onclick="{ showAllImages }" type="button">Show All Images</button>
   </div>
 
-  <div class="list-group" if="{ state.loadend && state.repositories.length > 0 }">
+  <div class="list-group" if="{ state.loadend && hasVisibleRepositories() }">
     <catalog-element
       each="{ item in state.repositories }"
       item="{ item }"
@@ -71,8 +92,10 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     import CatalogElement from './catalog-element.riot';
     import { Http } from '../../scripts/http';
     import { requestPool } from '../../scripts/request-pool';
+    import { invalidateRegistry } from '../../scripts/cache-request';
     import { getBranching } from '../../scripts/repositories';
     import { getRegistryServers } from '../../scripts/utils';
+    import { matchSearch } from '../search-bar.riot';
 
     const SHOW_TAGLESS_KEY = 'registryUiShowTagless';
 
@@ -129,7 +152,26 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         localStorage.setItem(SHOW_TAGLESS_KEY, String(showTagless));
         this.update({ showTagless });
       },
+      showAllImages() {
+        localStorage.setItem(SHOW_TAGLESS_KEY, 'true');
+        this.update({ showTagless: true });
+      },
+      hasVisibleRepositories() {
+        if (!this.state.repositories.length) return false;
+        return collectImages(this.state.repositories).some((image) => {
+          if (!matchSearch(this.props.filterResults, image)) return false;
+          if (!this.props.showCatalogNbTags || this.state.showTagless) return true;
+          const count = this.state.counts[image];
+          return count === null || count > 0;
+        });
+      },
+      hasPendingTagCounts() {
+        if (!this.props.showCatalogNbTags || this.state.showTagless) return false;
+        return collectImages(this.state.repositories).some((image) => this.state.counts[image] === undefined);
+      },
       onBeforeUnmount() {
+        this.activeRequest?.abort();
+        this.requestGeneration = (this.requestGeneration || 0) + 1;
         this.cancelPendingCounts();
       },
       cancelPendingCounts() {
@@ -159,12 +201,13 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           }
         }, COUNTS_FLUSH_MS);
       },
-      fetchNbTags(image, props) {
+      fetchNbTags(image, props, noCache = false) {
         return new Promise((resolve) => {
           requestPool.submit((done) => {
             const oReq = new Http({
               onAuthentication: props.onAuthentication,
               withCredentials: props.isRegistrySecured,
+              noCache,
             });
             oReq.addEventListener('loadend', function () {
               // Free the slot before doing anything with the response: parsing
@@ -186,11 +229,23 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           });
         });
       },
-      display(props, state) {
-        if (props.registryUrl === state.registryUrl) {
+      refresh() {
+        this.display(this.props, this.state, true);
+      },
+      display(props, state, refresh = false) {
+        if (!refresh && props.registryUrl === state.registryUrl) {
           return;
         }
+        const generation = (this.requestGeneration || 0) + 1;
+        this.requestGeneration = generation;
+        this.activeRequest?.abort();
         state.registryUrl = props.registryUrl;
+        if (refresh) {
+          invalidateRegistry(props.registryUrl);
+          this.update({ refreshing: true });
+        } else {
+          this.update({ loadend: false, repositories: [], counts: {}, refreshing: false });
+        }
         // Loading a different registry supersedes whatever page-level error the
         // previous one produced.
         if (props.onClearPageError) {
@@ -209,6 +264,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           withCredentials: props.isRegistrySecured,
         });
         oReq.addEventListener('load', function () {
+          if (generation !== self.requestGeneration) return;
           if (this.status === 200) {
             repositories = JSON.parse(this.responseText).repositories || [];
             repositories.sort();
@@ -232,9 +288,11 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           }
         });
         oReq.addEventListener('error', function () {
+          if (generation !== self.requestGeneration) return;
           self.props.onNotify(this.getErrorMessage(), true);
         });
         oReq.addEventListener('loadend', function () {
+          if (generation !== self.requestGeneration) return;
           // Render the list immediately; tag counts are fetched in the
           // background and the badges fill in as each count arrives.
           self.update({
@@ -243,6 +301,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
             nImages,
             counts: {},
             loadend: true,
+            refreshing: false,
           });
           if (props.showCatalogNbTags && repositories.length > 0) {
             const registryUrl = props.registryUrl;
@@ -250,7 +309,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
             // repository; report the reason once instead of N times.
             let notified = false;
             collectImages(repositories).forEach((image) => {
-              self.fetchNbTags(image, props).then(({ count, error }) => {
+              self.fetchNbTags(image, props, refresh).then(({ count, error }) => {
                 if (error !== undefined) {
                   if (!notified) {
                     notified = true;
@@ -264,6 +323,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           }
         });
         oReq.open('GET', catalogUrl);
+        this.activeRequest = oReq;
         oReq.send();
       },
     };

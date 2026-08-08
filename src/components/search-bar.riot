@@ -51,6 +51,15 @@
           }
         });
       },
+      onUpdated(props, state) {
+        if (state.resetToken === props.resetToken) return;
+        state.resetToken = props.resetToken;
+        const input = this.$('input');
+        if (input && input.value) {
+          input.value = '';
+          this.update({ value: '' });
+        }
+      },
       clear() {
         const input = this.$('input');
         if (input) {
