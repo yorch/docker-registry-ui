@@ -51,6 +51,32 @@ docker pull ghcr.io/yorch/docker-registry-ui:latest
 
 ![preview](./screenshot.png "Preview of Registry Explorer")
 
+## Concepts
+
+Registry Explorer uses the same words as the [Distribution API](https://distribution.github.io/distribution/spec/api/), with one addition of its own.
+
+| Term | What it is | Example |
+| --- | --- | --- |
+| **Repository** | A name you can pull. One entry in the registry's `/v2/_catalog`. | `team/service-a` |
+| **Namespace** | A group of repositories sharing a leading path segment. **A display grouping only** — the registry does not store namespaces and the API never returns them. | `team/` |
+| **Image** | A repository plus a tag: one thing you built and pushed. | `nginx:1.27` |
+| **Tag** | A mutable label pointing at a manifest inside one repository. | `1.27` |
+| **Manifest** | What a tag resolves to. Either a single-platform image or an index listing one manifest per platform. | `sha256:a1b2…` |
+
+The catalog header counts the first two, and they are usually different numbers. Given a registry holding:
+
+```
+broken-manifest  empty  exactly-100  huge  nginx
+no-digest-header  oci-index  slow  team/service-a  team/service-b
+```
+
+the header reads **10 repositories · 9 namespaces** — ten pullable names, shown as nine top-level rows, because `team/service-a` and `team/service-b` collapse under a single `team/` row.
+
+Two things follow from that:
+
+- The namespace count is *rows in the tree*, not the number of prefixes. Ungrouped repositories count as one row each, so a registry where nothing shares a prefix legitimately reports the same number twice.
+- Grouping is presentation, not data. Set `CATALOG_MIN_BRANCHES=0` and `CATALOG_MAX_BRANCHES=0` to switch it off and get one row per repository; raise `CATALOG_MAX_BRANCHES` to nest deeper (`a/b/c` grouping under `a/b/` rather than `a/`). Nothing about the registry changes either way.
+
 ## Hidden Features
 
 - Many ways to delete multiple images at once

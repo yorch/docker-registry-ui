@@ -36,6 +36,7 @@ const IMAGE = 'ghcr.io/yorch/docker-registry-ui';
  */
 const DOC_SECTIONS = [
   'Supported Docker tags',
+  'Concepts',
   'Hidden Features',
   'Available options',
   'Recommended Docker Registry Usage',

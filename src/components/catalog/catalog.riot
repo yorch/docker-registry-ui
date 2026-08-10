@@ -32,8 +32,18 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         </label>
       </div>
       <div class="catalog-stats">
-        <span if="{ state.loadend }" class="badge badge--accent">{ state.nRepositories } repositories</span>
-        <span if="{ state.loadend }" class="badge badge--neutral">{ state.nNamespaces } namespaces</span>
+        <span
+          if="{ state.loadend }"
+          class="badge badge--accent"
+          title="Names you can pull, as returned by the registry's catalog — for example team/service-a."
+          >{ state.nRepositories } repositories</span
+        >
+        <span
+          if="{ state.loadend }"
+          class="badge badge--neutral"
+          title="Top-level rows below: repositories sharing a leading path segment are grouped under it, for example team/. A display grouping only — the registry does not store namespaces."
+          >{ state.nNamespaces } namespaces</span
+        >
         <button
           class="btn btn--sm"
           onclick="{ refresh }"
