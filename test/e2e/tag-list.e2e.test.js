@@ -124,6 +124,47 @@ describe('tag list in a browser', function () {
     assert.deepEqual(await cellsOn(page, 'tag-table tbody td.creation-date'), ['—', '—', '—']);
   });
 
+  it('should show a real size and date for an index wrapping one platform', async () => {
+    // What buildx produces for a single-platform build. Reporting "Multiple"
+    // here contradicted the single architecture badge in the same row.
+    await openTagList('single-platform-index');
+    await page.waitForFunction(
+      () => {
+        const size = document.querySelector('tag-table tbody .image-size');
+        return size && !['', '…'].includes(size.textContent.trim());
+      },
+      { timeout: 60000 },
+    );
+
+    const [size] = await cellsOn(page, 'tag-table tbody .image-size');
+    const [date] = await cellsOn(page, 'tag-table tbody .image-date');
+    assert.notEqual(size, 'Multiple', 'one platform has exactly one size');
+    assert.match(size, /\d/, `expected a real size, got "${size}"`);
+    assert.notEqual(date, 'Multiple', 'one platform has exactly one creation date');
+
+    const arch = await page.$$eval('tag-table tbody td.architectures .architecture', (els) =>
+      els.map((e) => e.textContent.trim()),
+    );
+    assert.deepEqual(arch, ['amd64']);
+  });
+
+  it('should truncate every content digest to the same width', async () => {
+    // A row that subscribed before the first width broadcast used to render the
+    // whole digest, ending up wider than its neighbours and clipped mid-hash.
+    await openTagList('oci-index');
+    await page.waitForFunction(
+      () => {
+        const cells = [...document.querySelectorAll('tag-table tbody image-content-digest div')];
+        return cells.length > 1 && cells.every((cell) => cell.textContent.trim() !== '');
+      },
+      { timeout: 60000 },
+    );
+    const lengths = await page.$$eval('tag-table tbody image-content-digest div', (els) =>
+      els.map((e) => e.textContent.trim().length),
+    );
+    assert.equal(new Set(lengths).size, 1, `digests rendered at differing widths: ${lengths.join(', ')}`);
+  });
+
   it('should resolve every architecture of a multi-architecture index', async () => {
     await openTagList('oci-index');
     await page.waitForFunction(

@@ -132,17 +132,41 @@ export class DockerImage {
         });
         if (supportListManifest(response) && self.opts.list) {
           const manifests = filterWrongManifests(response);
-          self.isIndex = true;
           self.manifests = manifests;
-          self.variants = [];
-          // An index has no single creation date or image size. Presenting the
-          // first child as the whole tag made the digest, size and date depend
-          // on descriptor order. The details view resolves every platform.
-          self.size = null;
-          self.creationDate = null;
+          // Only a genuinely multi-platform index lacks a single size and date.
+          // Presenting the first descriptor as the whole tag made both depend on
+          // descriptor order, which is why those read "Multiple" -- but one
+          // platform is not ambiguous, and buildx wraps a lone manifest in an
+          // index routinely, so single-platform rows were reporting "Multiple"
+          // beside a single architecture badge.
+          self.isIndex = manifests.length > 1;
           self.trigger('list', manifests);
-          self.trigger('size', self.size);
-          self.trigger('creation-date', self.creationDate);
+          if (self.isIndex) {
+            self.variants = [];
+            self.size = null;
+            self.creationDate = null;
+            self.trigger('size', self.size);
+            self.trigger('creation-date', self.creationDate);
+            return;
+          }
+          // Relayed field by field rather than by a blanket event transfer: the
+          // row's content digest has to stay the index's own, since that is what
+          // the tag resolves to and what a delete must address.
+          const only = new DockerImage(self.name, manifests[0].digest, { ...self.opts, list: false });
+          self.variants = [only];
+          only.on('size', (size) => {
+            self.size = size;
+            self.trigger('size', size);
+          });
+          only.on('creation-date', (creationDate) => {
+            self.creationDate = creationDate;
+            self.trigger('creation-date', creationDate);
+          });
+          only.on('blobs', (blobs) => {
+            self.blobs = blobs;
+            self.trigger('blobs', blobs);
+          });
+          only.fillInfo();
           return;
         }
         self.ociImage = response.mediaType === 'application/vnd.oci.image.index.v1+json';
