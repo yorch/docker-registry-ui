@@ -20,6 +20,20 @@ describe('docker-image', () => {
     it('should support mediaType `application/vnd.oci.image.index.v1+json`', () => {
       assert.ok(supportListManifest(ociImageIndexManifest['application/vnd.oci.image.index.v1+json']));
     });
+    it('should ignore attestation descriptors when detecting an OCI image index', () => {
+      assert.ok(
+        supportListManifest({
+          mediaType: 'application/vnd.oci.image.index.v1+json',
+          manifests: [
+            { mediaType: 'application/vnd.oci.image.manifest.v1+json', platform: { architecture: 'amd64' } },
+            {
+              mediaType: 'application/vnd.in-toto+json',
+              annotations: { 'vnd.docker.reference.type': 'attestation-manifest' },
+            },
+          ],
+        }),
+      );
+    });
     /**
      * Index of an image created with:
      * buildctl build --frontend=dockerfile.v0 --local context=. --local dockerfile=. --export-cache type=registry,ref=joxit/docker-registry-ui:buildkit

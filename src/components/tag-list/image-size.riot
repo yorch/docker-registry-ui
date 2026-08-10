@@ -15,7 +15,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 <image-size>
-  <div title="Compressed size of your image.">{ getImageSize(props.image) }</div>
+  <div title="{ props.image.isIndex ? 'Sizes vary by platform. Open details for the complete breakdown.' : 'Compressed size of your image.' }">{ getImageSize(props.image) }</div>
   <script>
     import { bytesToSize } from '../../scripts/utils';
     export default {
@@ -44,6 +44,7 @@
         props.image.trigger('get-size');
       },
       getImageSize(image) {
+        if (image.isIndex) return 'Multiple';
         return bytesToSize(image.size);
       },
     };

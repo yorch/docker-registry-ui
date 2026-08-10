@@ -1,0 +1,680 @@
+<registry-operations>
+  <section class="panel operations-panel">
+    <button
+      class="operations-toggle"
+      onclick="{ toggle }"
+      aria-expanded="{ state.expanded }"
+      type="button"
+    >
+      <span>
+        <i class="material-icons" aria-hidden="true">monitoring</i>
+        <span>
+          <strong>Registry Insights &amp; Cleanup</strong>
+          <small>Measure usage and preview retention safely</small>
+        </span>
+      </span>
+      <i class="material-icons toggle-chevron { state.expanded ? 'expanded' : '' }" aria-hidden="true">expand_more</i>
+    </button>
+
+    <div if="{ state.expanded }" class="operations-body">
+      <div if="{ !state.scanning && !state.summary }" class="operations-intro">
+        <div>
+          <h3>Build a live registry inventory</h3>
+          <p>
+            Reads every repository, tag, manifest, and config progressively. Nothing is changed until a cleanup preview is explicitly confirmed.
+          </p>
+        </div>
+        <button class="btn btn--primary" onclick="{ scan }" type="button">
+          <i class="material-icons" aria-hidden="true">query_stats</i>
+          Analyze Registry
+        </button>
+      </div>
+
+      <div if="{ state.scanning }" class="scan-progress" role="status" aria-live="polite">
+        <div class="progress-heading">
+          <div>
+            <strong>Analyzing registry…</strong>
+            <span>{ progressLabel() }</span>
+          </div>
+          <button class="btn btn--sm" onclick="{ cancelScan }" type="button">Cancel</button>
+        </div>
+        <progress value="{ state.processedTags }" max="{ Math.max(state.totalTags, 1) }"></progress>
+        <span>{ state.processedTags } of { state.totalTags || 'unknown' } tags inspected</span>
+      </div>
+
+      <div if="{ state.summary }">
+        <div class="insights-heading">
+          <div>
+            <h3>Registry inventory</h3>
+            <p>Computed from manifest metadata at { formatDate(state.completedAt) }.</p>
+          </div>
+          <button class="btn btn--sm" onclick="{ scan }" disabled="{ state.scanning }" type="button">
+            <i class="material-icons" aria-hidden="true">refresh</i>
+            Re-analyze
+          </button>
+        </div>
+
+        <dl class="metric-grid">
+          <div><dt>Repositories</dt><dd>{ state.summary.repositories }</dd></div>
+          <div><dt>Tags</dt><dd>{ state.summary.tags }</dd></div>
+          <div><dt>Unique manifests</dt><dd>{ state.summary.manifests }</dd></div>
+          <div><dt>Tagless</dt><dd>{ state.summary.tagless }</dd></div>
+          <div><dt>Unique layer bytes</dt><dd>{ bytesToSize(state.summary.uniqueLayerSize) }</dd></div>
+          <div><dt>Logical tag size</dt><dd>{ bytesToSize(state.summary.logicalSize) }</dd></div>
+        </dl>
+
+        <p if="{ state.scanErrors.length }" class="scan-warning" role="status">
+          <i class="material-icons" aria-hidden="true">warning</i>
+          { state.scanErrors.length } tags could not be inspected and are excluded from cleanup.
+        </p>
+
+        <div if="{ state.summary.largestRepositories.length }" class="largest-list">
+          <h4>Largest repositories by logical tag size</h4>
+          <div class="largest-row" each="{ repository in state.summary.largestRepositories }">
+            <code>{ repository.name }</code>
+            <span>{ repository.tags } tags</span>
+            <strong>{ bytesToSize(repository.size) }</strong>
+          </div>
+        </div>
+
+        <div class="size-note">
+          <i class="material-icons" aria-hidden="true">info</i>
+          <span>
+            Unique layer bytes deduplicate layer digests visible through the API. Filesystem overhead and exact reclaimable disk space are not exposed by the Registry API.
+          </span>
+        </div>
+
+        <form class="retention-form" onsubmit="{ previewRetention }">
+          <div class="retention-heading">
+            <div>
+              <h3>Retention preview</h3>
+              <p>Only manifests for which every tag is outside the safety rules can become a candidate.</p>
+            </div>
+            <button class="btn btn--primary" type="submit">Preview Cleanup</button>
+          </div>
+          <div class="policy-grid">
+            <label>
+              <span>Older than (days)</span>
+              <input name="olderThanDays" type="number" min="0" value="{ state.policy.olderThanDays }" required />
+            </label>
+            <label>
+              <span>Keep newest per repository</span>
+              <input name="keepNewest" type="number" min="0" value="{ state.policy.keepNewest }" required />
+            </label>
+            <label class="patterns-field">
+              <span>Protected tag patterns</span>
+              <input name="protectedPatterns" type="text" value="{ state.policy.protectedPatterns }" placeholder="latest, stable, release-*" />
+            </label>
+          </div>
+        </form>
+
+        <div if="{ state.plan }" class="retention-results">
+          <div class="preview-summary">
+            <div>
+              <strong>{ state.plan.candidates.length } manifest candidates</strong>
+              <span>{ candidateTagCount() } affected tags · { bytesToSize(candidateSize()) } logical compressed size</span>
+            </div>
+            <div class="preview-actions">
+              <button class="btn btn--sm" onclick="{ selectAll }" disabled="{ !state.plan.candidates.length }" type="button">Select All</button>
+              <button class="btn btn--sm" onclick="{ clearSelection }" disabled="{ !state.selected.size }" type="button">Clear</button>
+              <button
+                class="btn btn--danger btn--sm"
+                onclick="{ confirmDelete }"
+                disabled="{ !state.selected.size || !props.isImageRemoveActivated }"
+                type="button"
+              >
+                Delete Selected
+              </button>
+            </div>
+          </div>
+
+          <p if="{ !props.isImageRemoveActivated }" class="delete-disabled">
+            Deletion is disabled by configuration. Set <code>DELETE_IMAGES=true</code> to enable execution; previews remain available.
+          </p>
+
+          <div if="{ state.plan.candidates.length }" class="candidate-table-wrap">
+            <table class="data-table candidate-table">
+              <thead><tr><th>Select</th><th>Repository</th><th>Tags removed together</th><th>Newest date</th><th>Size</th></tr></thead>
+              <tbody>
+                <tr each="{ candidate in state.plan.candidates }">
+                  <td data-label="Select">
+                    <app-checkbox
+                      checked="{ state.selected.has(candidateKey(candidate)) }"
+                      on-change="{ event => toggleCandidate(candidate, event) }"
+                      aria-label="Select { candidate.repository } { candidate.tags.join(', ') }"
+                    ></app-checkbox>
+                  </td>
+                  <td data-label="Repository"><code>{ candidate.repository }</code></td>
+                  <td data-label="Tags">{ candidate.tags.join(', ') }</td>
+                  <td data-label="Newest date">{ formatDate(candidate.created) }</td>
+                  <td data-label="Size">{ bytesToSize(candidate.size) }</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p if="{ !state.plan.candidates.length }" class="no-candidates">No manifests satisfy every policy rule.</p>
+          <details if="{ state.plan.skipped.length }">
+            <summary>{ state.plan.skipped.length } protected or unverifiable manifests excluded</summary>
+            <ul>
+              <li each="{ item in state.plan.skipped.slice(0, 50) }">
+                <code>{ item.repository }:{ item.tags.join(', ') }</code> — { item.reason }
+              </li>
+            </ul>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <app-dialog title="Confirm retention cleanup" opened="{ state.confirming }" on-close="{ closeConfirm }">
+    <div class="confirm-copy">
+      <span class="danger-icon"><i class="material-icons" aria-hidden="true">delete_forever</i></span>
+      <p>
+        Delete <strong>{ selectedCandidates().length } manifests</strong> and all
+        <strong>{ selectedTagCount() } attached tags</strong>?
+      </p>
+      <p>This cannot be undone from the UI. The registry may retain blobs until an administrator runs server-side garbage collection.</p>
+    </div>
+    <div slot="footer" class="confirm-actions">
+      <button class="btn" onclick="{ closeConfirm }" disabled="{ state.deleting }" type="button">Cancel</button>
+      <button class="btn btn--danger" onclick="{ executeDelete }" disabled="{ state.deleting }" type="button">
+        { state.deleting ? 'Deleting…' : 'Delete Manifests' }
+      </button>
+    </div>
+  </app-dialog>
+
+  <script>
+    import { RegistryClient } from '../../scripts/registry-client';
+    import { planRetention, summarizeRegistry } from '../../scripts/registry-analysis';
+    import { invalidateRegistry } from '../../scripts/cache-request';
+    import { bytesToSize } from '../../scripts/utils';
+
+    const BATCH_SIZE = 12;
+
+    export default {
+      state: {
+        expanded: false,
+        scanning: false,
+        repositoryNames: [],
+        records: [],
+        scanErrors: [],
+        processedTags: 0,
+        totalTags: 0,
+        selected: new Set(),
+        policy: { olderThanDays: 90, keepNewest: 5, protectedPatterns: 'latest, stable' },
+      },
+      toggle() {
+        this.update({ expanded: !this.state.expanded });
+      },
+      client() {
+        return new RegistryClient({
+          registryUrl: this.props.registryUrl,
+          onAuthentication: this.props.onAuthentication,
+          isRegistrySecured: this.props.isRegistrySecured,
+        });
+      },
+      async scan() {
+        const generation = (this.generation || 0) + 1;
+        this.generation = generation;
+        this.update({
+          scanning: true,
+          summary: undefined,
+          plan: undefined,
+          records: [],
+          scanErrors: [],
+          repositoryNames: [],
+          processedTags: 0,
+          totalTags: 0,
+          selected: new Set(),
+        });
+        const client = this.client();
+        const records = [];
+        const scanErrors = [];
+        try {
+          const repositoryNames = await client.allRepositories({
+            pageSize: Number(this.props.catalogElementsLimit) || 100,
+            isCancelled: () => generation !== this.generation,
+            onProgress: ({ repositories }) => {
+              if (generation === this.generation) this.update({ repositoryNames: repositories });
+            },
+          });
+          if (generation !== this.generation) return;
+          const inventories = [];
+          for (const repository of repositoryNames) {
+            if (generation !== this.generation) return;
+            try {
+              const tags = await client.tags(repository);
+              inventories.push({ repository, tags });
+              this.update({ totalTags: this.state.totalTags + tags.length });
+            } catch (error) {
+              scanErrors.push({ repository, error: error.message || String(error) });
+            }
+          }
+          for (const inventory of inventories) {
+            for (let offset = 0; offset < inventory.tags.length; offset += BATCH_SIZE) {
+              if (generation !== this.generation) return;
+              const tags = inventory.tags.slice(offset, offset + BATCH_SIZE);
+              const settled = await Promise.allSettled(
+                tags.map((tag) => client.inspectTag(inventory.repository, tag)),
+              );
+              settled.forEach((result, index) => {
+                if (result.status === 'fulfilled') records.push(result.value);
+                else scanErrors.push({
+                  repository: inventory.repository,
+                  tag: tags[index],
+                  error: result.reason?.message || String(result.reason),
+                });
+              });
+              this.update({
+                records: [...records],
+                scanErrors: [...scanErrors],
+                processedTags: this.state.processedTags + tags.length,
+              });
+            }
+          }
+          if (generation !== this.generation) return;
+          this.update({
+            scanning: false,
+            summary: summarizeRegistry(records, repositoryNames),
+            completedAt: new Date(),
+          });
+        } catch (error) {
+          if (generation === this.generation) {
+            this.update({ scanning: false });
+            this.props.onNotify(error.message || error, true);
+          }
+        }
+      },
+      cancelScan() {
+        this.generation = (this.generation || 0) + 1;
+        this.update({ scanning: false });
+      },
+      onBeforeUnmount() {
+        this.generation = (this.generation || 0) + 1;
+      },
+      progressLabel() {
+        if (!this.state.totalTags) return `${this.state.repositoryNames.length} repositories discovered`;
+        return `${this.state.repositoryNames.length} repositories · ${this.state.scanErrors.length} unavailable`;
+      },
+      previewRetention(event) {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        const policy = {
+          olderThanDays: Number(form.get('olderThanDays')),
+          keepNewest: Number(form.get('keepNewest')),
+          protectedPatterns: String(form.get('protectedPatterns') || '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean),
+        };
+        const plan = planRetention(this.state.records, policy);
+        this.update({
+          policy: { ...policy, protectedPatterns: policy.protectedPatterns.join(', ') },
+          plan,
+          selected: new Set(plan.candidates.map(this.candidateKey)),
+        });
+      },
+      candidateKey(candidate) {
+        return `${candidate.repository}:${candidate.digest}`;
+      },
+      toggleCandidate(candidate, event) {
+        const selected = new Set(this.state.selected);
+        const key = this.candidateKey(candidate);
+        event.target.checked ? selected.add(key) : selected.delete(key);
+        this.update({ selected });
+      },
+      selectAll() {
+        this.update({ selected: new Set(this.state.plan.candidates.map(this.candidateKey)) });
+      },
+      clearSelection() {
+        this.update({ selected: new Set() });
+      },
+      selectedCandidates() {
+        return (this.state.plan?.candidates || []).filter((candidate) =>
+          this.state.selected.has(this.candidateKey(candidate)),
+        );
+      },
+      candidateTagCount() {
+        return (this.state.plan?.candidates || []).reduce((total, candidate) => total + candidate.tags.length, 0);
+      },
+      selectedTagCount() {
+        return this.selectedCandidates().reduce((total, candidate) => total + candidate.tags.length, 0);
+      },
+      candidateSize() {
+        return (this.state.plan?.candidates || []).reduce((total, candidate) => total + candidate.size, 0);
+      },
+      confirmDelete() {
+        if (this.state.selected.size && this.props.isImageRemoveActivated) this.update({ confirming: true });
+      },
+      closeConfirm() {
+        if (!this.state.deleting) this.update({ confirming: false });
+      },
+      async executeDelete() {
+        const candidates = this.selectedCandidates();
+        if (!candidates.length || !this.props.isImageRemoveActivated) return;
+        this.update({ deleting: true });
+        const client = this.client();
+        const failures = [];
+        for (const candidate of candidates) {
+          try {
+            await this.revalidateCandidate(client, candidate);
+            await client.deleteManifest(candidate.repository, candidate.digest);
+          } catch (error) {
+            failures.push(`${candidate.repository}: ${error.message || error}`);
+          }
+        }
+        invalidateRegistry(this.props.registryUrl);
+        this.update({ deleting: false, confirming: false, plan: undefined, summary: undefined });
+        if (failures.length) {
+          this.props.onNotify(`${candidates.length - failures.length} manifests deleted; ${failures.length} failed.`, true);
+        } else {
+          this.props.onNotify(`${candidates.length} manifests deleted. Run registry garbage collection server-side to reclaim blobs.`);
+        }
+        this.props.onRegistryChanged?.();
+      },
+      async revalidateCandidate(client, candidate) {
+        const tags = await client.tags(candidate.repository, { noCache: true });
+        const settled = await Promise.allSettled(
+          tags.map((tag) => client.manifest(candidate.repository, tag, { noCache: true })),
+        );
+        if (settled.some((result) => result.status === 'rejected')) {
+          throw new Error('Could not revalidate every current tag; nothing was deleted');
+        }
+        const aliases = tags
+          .filter((_, index) => settled[index].value.digest === candidate.digest)
+          .sort();
+        const previewAliases = [...candidate.tags].sort();
+        if (aliases.length !== previewAliases.length || aliases.some((tag, index) => tag !== previewAliases[index])) {
+          throw new Error('Tags changed since the preview; re-analyze before deleting');
+        }
+      },
+      formatDate(value) {
+        return value ? new Date(value).toLocaleString() : 'Unavailable';
+      },
+      bytesToSize,
+    };
+  </script>
+
+  <style>
+    :host {
+      display: block;
+      margin-bottom: var(--space-4);
+    }
+
+    :host .operations-panel {
+      overflow: hidden;
+    }
+
+    :host .operations-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: var(--space-4);
+      border: 0;
+      background: transparent;
+      color: var(--text-primary);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    :host .operations-toggle > span,
+    :host .operations-toggle > span > span {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    :host .operations-toggle > span > span {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    :host .operations-toggle small {
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    :host .operations-toggle:hover {
+      background: var(--surface-muted);
+    }
+
+    :host .toggle-chevron {
+      transition: transform var(--dur-normal) var(--ease-out);
+    }
+
+    :host .toggle-chevron.expanded {
+      transform: rotate(180deg);
+    }
+
+    :host .operations-body {
+      padding: var(--space-5);
+      border-top: 1px solid var(--border);
+    }
+
+    :host h3,
+    :host h4,
+    :host p {
+      margin-top: 0;
+    }
+
+    :host .operations-intro,
+    :host .progress-heading,
+    :host .insights-heading,
+    :host .retention-heading,
+    :host .preview-summary,
+    :host .preview-actions,
+    :host .confirm-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+    }
+
+    :host .operations-intro p,
+    :host .insights-heading p,
+    :host .retention-heading p {
+      margin-bottom: 0;
+      color: var(--text-secondary);
+    }
+
+    :host .scan-progress progress {
+      width: 100%;
+      height: 8px;
+      margin: var(--space-4) 0 var(--space-2);
+      accent-color: var(--accent);
+    }
+
+    :host .progress-heading > div,
+    :host .preview-summary > div:first-child {
+      display: flex;
+      flex-direction: column;
+    }
+
+    :host .progress-heading span,
+    :host .preview-summary span {
+      color: var(--text-muted);
+    }
+
+    :host .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: var(--space-3);
+      margin: var(--space-4) 0;
+    }
+
+    :host .metric-grid > div {
+      padding: var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface-muted);
+    }
+
+    :host dt {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+
+    :host dd {
+      margin: var(--space-1) 0 0;
+      font-family: var(--font-mono);
+      font-size: var(--fs-xl);
+      font-weight: 600;
+    }
+
+    :host .scan-warning,
+    :host .size-note,
+    :host .delete-disabled {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border-radius: var(--radius-md);
+      background: var(--surface-muted);
+      color: var(--text-secondary);
+    }
+
+    :host .scan-warning {
+      color: var(--warning);
+    }
+
+    :host .largest-list {
+      margin: var(--space-5) 0;
+    }
+
+    :host .largest-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: var(--space-4);
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    :host .largest-row code {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    :host .retention-form {
+      margin-top: var(--space-6);
+      padding-top: var(--space-5);
+      border-top: 1px solid var(--border);
+    }
+
+    :host .policy-grid {
+      display: grid;
+      grid-template-columns: minmax(160px, 1fr) minmax(190px, 1fr) minmax(260px, 2fr);
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+
+    :host .policy-grid label {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      color: var(--text-secondary);
+      font-size: var(--fs-md);
+    }
+
+    :host .policy-grid input {
+      min-height: 36px;
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      color: var(--text-primary);
+      font: inherit;
+    }
+
+    :host .policy-grid input:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    :host .retention-results {
+      margin-top: var(--space-5);
+    }
+
+    :host .candidate-table-wrap {
+      max-height: 420px;
+      margin-top: var(--space-3);
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+    }
+
+    :host .candidate-table tr {
+      content-visibility: auto;
+      contain-intrinsic-size: 44px;
+    }
+
+    :host details {
+      margin-top: var(--space-3);
+      color: var(--text-secondary);
+    }
+
+    :host details summary {
+      cursor: pointer;
+    }
+
+    :host details ul {
+      max-height: 240px;
+      overflow: auto;
+    }
+
+    :host .no-candidates {
+      margin: var(--space-4) 0 0;
+      color: var(--text-secondary);
+    }
+
+    :host .confirm-copy {
+      text-align: center;
+    }
+
+    :host .danger-icon {
+      display: inline-flex;
+      padding: var(--space-3);
+      border-radius: var(--radius-full);
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    @media screen and (max-width: 900px) {
+      :host .metric-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      :host .policy-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      :host .patterns-field {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media screen and (max-width: 600px) {
+      :host .operations-intro,
+      :host .insights-heading,
+      :host .retention-heading,
+      :host .preview-summary {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      :host .metric-grid,
+      :host .policy-grid {
+        grid-template-columns: 1fr;
+      }
+
+      :host .patterns-field {
+        grid-column: auto;
+      }
+
+      :host .preview-actions {
+        flex-wrap: wrap;
+      }
+    }
+  </style>
+</registry-operations>

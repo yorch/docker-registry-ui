@@ -94,7 +94,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       },
       onTabChanged(arch, idx) {
         const state = this.state;
-        const { registryUrl, onNotify, useControlCacheHeader } = this.props;
+        const { registryUrl, onNotify, onAuthentication, useControlCacheHeader, isRegistrySecured } = this.props;
         state.elements = [];
         state.image.variants[idx] =
           state.image.variants[idx] ||
@@ -102,7 +102,9 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
             list: false,
             registryUrl,
             onNotify,
+            onAuthentication,
             useControlCacheHeader,
+            isRegistrySecured,
           });
         if (state.image.variants[idx].blobs) {
           return this.processBlobs(state.image.variants[idx].blobs);
@@ -150,6 +152,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         this.update({
           archs,
         });
+        if (archs.length) this.onTabChanged(archs[0], 0);
       },
       showDockerfile() {
         this.update({ showDockerfile: true });

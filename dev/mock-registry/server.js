@@ -105,7 +105,7 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Authorization, Accept, Cache-Control',
   // Without this the browser hides the header and the UI silently falls back to
   // hashing the response body instead of reading the registry's digest.
-  'Access-Control-Expose-Headers': 'Docker-Content-Digest',
+  'Access-Control-Expose-Headers': 'Docker-Content-Digest, Link',
   'Access-Control-Max-Age': '1728000',
 };
 
@@ -173,7 +173,16 @@ export const createMockRegistry = async ({
 
     if (catalog) {
       const limit = Number(url.searchParams.get('n')) || 1000;
-      return send(res, 200, { repositories: [...repositories.keys()].slice(0, limit) });
+      const names = [...repositories.keys()].sort();
+      const last = url.searchParams.get('last');
+      const nextIndex = last ? names.findIndex((name) => name > last) : 0;
+      const start = nextIndex < 0 ? names.length : nextIndex;
+      const page = names.slice(start, start + limit);
+      const headers = {};
+      if (start + page.length < names.length && page.length) {
+        headers.Link = `</v2/_catalog?n=${limit}&last=${encodeURIComponent(page.at(-1))}>; rel="next"`;
+      }
+      return send(res, 200, { repositories: page }, headers);
     }
 
     if (!repository) {

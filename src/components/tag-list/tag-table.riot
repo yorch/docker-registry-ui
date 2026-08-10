@@ -75,6 +75,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           </button>
         </th>
         <th class="architectures">Arch</th>
+        <th class="details-col">Details</th>
         <th class="digest-col" if="{ props.showContentDigest }">Content digest</th>
         <th class="history-col" if="{ props.showTagHistory }">History</th>
       </tr>
@@ -110,6 +111,14 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         <td class="architectures" data-label="Arch">
           <architectures image="{ image }"></architectures>
         </td>
+        <td class="details-col" data-label="Details">
+          <image-details
+            image="{ image }"
+            registry-url="{ props.registryUrl }"
+            on-authentication="{ props.onAuthentication }"
+            is-registry-secured="{ props.isRegistrySecured }"
+          ></image-details>
+        </td>
         <td class="digest-col" if="{ props.showContentDigest }" data-label="Content digest">
           <image-content-digest image="{ image }"></image-content-digest>
           <copy-to-clipboard
@@ -138,6 +147,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     import Architectures from './architectures.riot';
     import { matchSearch } from '../search-bar.riot';
     import ConfirmDeleteImage from '../dialogs/confirm-delete-image.riot';
+    import ImageDetails from '../dialogs/image-details.riot';
     const ACTION_CHECK_TO_DELETE = 'CHECK';
     const ACTION_UNCHECK_TO_DELETE = 'UNCHECK';
     const ACTION_DELETE_IMAGE = 'DELETE';
@@ -153,6 +163,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         TagHistoryButton,
         ConfirmDeleteImage,
         Architectures,
+        ImageDetails,
       },
       onBeforeMount(props) {
         this.state = {

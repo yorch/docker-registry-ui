@@ -16,7 +16,7 @@
  */
 import { Http } from './http.js';
 import { requestPool } from './request-pool.js';
-import { eventTransfer, ERROR_CAN_NOT_READ_CONTENT_DIGEST } from './utils.js';
+import { ERROR_CAN_NOT_READ_CONTENT_DIGEST } from './utils.js';
 import observable from '@riotjs/observable';
 
 export const supportListManifest = (response) => {
@@ -24,7 +24,11 @@ export const supportListManifest = (response) => {
     return true;
   }
   if (response.mediaType === 'application/vnd.oci.image.index.v1+json' && Array.isArray(response.manifests)) {
-    return !response.manifests.some(({ mediaType }) => mediaType !== 'application/vnd.oci.image.manifest.v1+json');
+    const manifests = filterWrongManifests(response);
+    return (
+      manifests.length > 0 &&
+      !manifests.some(({ mediaType }) => mediaType !== 'application/vnd.oci.image.manifest.v1+json')
+    );
   }
   return false;
 };
@@ -120,15 +124,24 @@ export class DockerImage {
       done();
       if (this.status === 200 || this.status === 202) {
         const response = JSON.parse(this.responseText);
+        oReq.getContentDigest(function (contentDigest) {
+          self.contentDigest = contentDigest;
+          self.trigger('content-digest', contentDigest);
+          if (!contentDigest) self.opts.onNotify(ERROR_CAN_NOT_READ_CONTENT_DIGEST);
+        });
         if (supportListManifest(response) && self.opts.list) {
           const manifests = filterWrongManifests(response);
-          self.trigger('list', manifests);
+          self.isIndex = true;
           self.manifests = manifests;
-          const manifest = response.manifests[0];
-          const image = new DockerImage(self.name, manifest.digest, { ...self.opts, list: false });
-          eventTransfer(image, self);
-          image.fillInfo();
-          self.variants = [image];
+          self.variants = [];
+          // An index has no single creation date or image size. Presenting the
+          // first child as the whole tag made the digest, size and date depend
+          // on descriptor order. The details view resolves every platform.
+          self.size = null;
+          self.creationDate = null;
+          self.trigger('list', manifests);
+          self.trigger('size', self.size);
+          self.trigger('creation-date', self.creationDate);
           return;
         }
         self.ociImage = response.mediaType === 'application/vnd.oci.image.index.v1+json';
@@ -140,13 +153,6 @@ export class DockerImage {
         self.sha256 = response.config && response.config.digest;
         self.trigger('size', self.size);
         self.trigger('sha256', self.sha256);
-        oReq.getContentDigest(function (contentDigest) {
-          self.contentDigest = contentDigest;
-          self.trigger('content-digest', contentDigest);
-          if (!contentDigest) {
-            self.opts.onNotify(ERROR_CAN_NOT_READ_CONTENT_DIGEST);
-          }
-        });
         if (!self.ociImage) {
           self.getBlobs(self.sha256);
         } else {

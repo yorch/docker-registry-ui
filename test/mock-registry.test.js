@@ -31,6 +31,15 @@ describe('mock registry', () => {
       const body = await json('/v2/_catalog?n=2');
       assert.equal(body.repositories.length, 2);
     });
+
+    it('should paginate after last and advertise the next page', async () => {
+      const first = await get('/v2/_catalog?n=2');
+      assert.match(first.headers.get('Link'), /rel="next"/);
+      const firstBody = await first.json();
+      const second = await json(`/v2/_catalog?n=2&last=${encodeURIComponent(firstBody.repositories.at(-1))}`);
+      assert.equal(second.repositories.length, 2);
+      assert.ok(!second.repositories.some((name) => firstBody.repositories.includes(name)));
+    });
   });
 
   describe('tags', () => {
@@ -156,6 +165,11 @@ describe('mock registry', () => {
     it('should expose the content digest header', async () => {
       const response = await get('/v2/_catalog?n=10');
       assert.match(response.headers.get('Access-Control-Expose-Headers'), /Docker-Content-Digest/i);
+    });
+
+    it('should expose the catalog pagination link', async () => {
+      const response = await get('/v2/_catalog?n=2');
+      assert.match(response.headers.get('Access-Control-Expose-Headers'), /Link/i);
     });
 
     it('should answer a preflight allowing DELETE', async () => {
