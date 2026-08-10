@@ -16,6 +16,7 @@ This fork is a modified version of the original project. The substantive differe
 - **Async tag counts in the catalog.** Tag-count badges are fetched in the background and fill in as each count resolves, instead of blocking the catalog render.
 - **Tag-list selection, pagination, and error fixes.** `Alt + Click` and `Shift + Click` selection work again — they read `altKey`/`shiftKey`, which a forwarded `change` event never carried, so the checkbox now forwards pointer events instead. Select-all-on-page respects the configured page size rather than falling back to a default. `getNumPages` no longer reports a phantom empty trailing page when the tag count is an exact multiple of the page size. `image-size` and `architectures` no longer leak an event listener on every re-render. A page-level error (unreachable catalog, mixed content, malformed registry URL) stays visible until the next catalog load instead of disappearing on a 1s timer.
 - **Registry request caching and bounded fan-out.** Tag lists and tag-addressed manifests are now cached for 30 seconds (`MUTABLE_TTL_MS` in `src/scripts/cache-request.js`), in addition to the existing indefinite cache for digest-addressed blobs and manifests. Requests are bounded to 6 concurrent (`MAX_CONCURRENT_REQUESTS` in `src/scripts/request-pool.js`) instead of firing all at once — on a 100-tag catalog, peak concurrent requests drops from about 101 to about 7. Tag-list cells distinguish a pending fetch from a failed one instead of appearing to load forever, and the delete flow opts out of the cache, since it reads a content digest and then deletes by it.
+- **Registry operations for large installations.** Catalog pages follow the Distribution API's `Link: rel="next"` continuation instead of silently stopping at the first page. Multi-platform tags expose an on-demand per-platform manifest, date, layer, size, and digest breakdown. The catalog also includes a progressive registry inventory and a preview-first retention planner; it excludes protected, recent, kept, or unverifiable aliases and only enables deletion when `DELETE_IMAGES=true`. Reported sizes come from compressed manifest layers and are estimates, not filesystem usage.
 - **Images are published to GHCR**, not Docker Hub. Pull from `ghcr.io/yorch/docker-registry-ui` instead of `joxit/docker-registry-ui`.
 - **Biome replaces Prettier** for formatting and linting.
 - **Multi-stage Docker builds**, and `dist/` is no longer committed to the repository. The images build the bundle themselves.
@@ -119,7 +120,7 @@ Some env options are available for use this interface for **only one server** (w
 - `PULL_URL`: Set a custom url when you copy the `docker pull` command (see [#71](https://github.com/Joxit/docker-registry-ui/issues/71)). (default: value derived from `REGISTRY_URL`). Since 1.1.0
 - `DELETE_IMAGES`: Set if we can delete images from the UI. (default: `false`)
 - `SHOW_CONTENT_DIGEST`: Show/Hide content digest in docker tag list (see [#126](https://github.com/Joxit/docker-registry-ui/issues/126) and [#131](https://github.com/Joxit/docker-registry-ui/pull/131)). (default: `false`). Since 1.4.9
-- `CATALOG_ELEMENTS_LIMIT`: Limit the number of elements in the catalog page (see [#39](https://github.com/Joxit/docker-registry-ui/issues/39), [#127](https://github.com/Joxit/docker-registry-ui/pull/127), [#132](https://github.com/Joxit/docker-registry-ui/pull/132)) and [#306](https://github.com/Joxit/docker-registry-ui/issues/306). (default: `1000`). Since 1.4.9
+- `CATALOG_ELEMENTS_LIMIT`: Number of repositories requested per catalog page. When the registry advertises a continuation link, the UI offers **Load More** and **Load All** instead of silently truncating the catalog. (default: `1000`). Since 1.4.9
 - `SINGLE_REGISTRY`: Remove the menu that show the dialogs to add, remove and change the endpoint of your docker registry. (default: `false`). Since 2.0.0
 - `NGINX_PROXY_PASS_URL`: Update the default Nginx configuration and set the **proxy_pass** to your backend docker registry (this avoid CORS configuration). This is usually the name of your registry container in the form `http://registry:5000`. Since 2.0.0
 - `NGINX_PROXY_HEADER_*`: Update the default Nginx configuration and **set custom headers** for your backend docker registry via environment variable and file (`/etc/nginx/.env`). Only when `NGINX_PROXY_PASS_URL` is used (see [#89](https://github.com/Joxit/docker-registry-ui/pull/89)). Since 1.2.3
@@ -197,7 +198,7 @@ services:
       REGISTRY_HTTP_HEADERS_Access-Control-Allow-Methods: '[HEAD,GET,OPTIONS,DELETE]'
       REGISTRY_HTTP_HEADERS_Access-Control-Allow-Credentials: '[true]'
       REGISTRY_HTTP_HEADERS_Access-Control-Allow-Headers: '[Authorization,Accept,Cache-Control]'
-      REGISTRY_HTTP_HEADERS_Access-Control-Expose-Headers: '[Docker-Content-Digest]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Expose-Headers: '[Docker-Content-Digest,Link]'
       REGISTRY_STORAGE_DELETE_ENABLED: 'true'
     volumes:
       - ./registry/data:/var/lib/registry
@@ -218,6 +219,7 @@ http:
     Access-Control-Allow-Origin: ['*']
     Access-Control-Allow-Headers: ['Accept', 'Cache-Control']
     Access-Control-Allow-Methods: ['HEAD', 'GET', 'OPTIONS'] # Optional
+    Access-Control-Expose-Headers: ['Docker-Content-Digest', 'Link']
 ```
 
 If your docker registry need credentials, you will need to send these HEADERS (you must add the protocol `http`/`https` and the port when not default `80`/`443`):
@@ -250,7 +252,7 @@ http:
   headers:
     Access-Control-Allow-Methods: ['HEAD', 'GET', 'OPTIONS', 'DELETE']
     Access-Control-Allow-Headers: ['Authorization', 'Accept', 'Cache-Control']
-    Access-Control-Expose-Headers: ['Docker-Content-Digest']
+    Access-Control-Expose-Headers: ['Docker-Content-Digest', 'Link']
 ```
 
 ## Registry example
@@ -278,7 +280,7 @@ http:
     Access-Control-Allow-Headers: ['Authorization', 'Accept', 'Cache-Control']
     Access-Control-Max-Age: [1728000]
     Access-Control-Allow-Credentials: [true]
-    Access-Control-Expose-Headers: ['Docker-Content-Digest']
+    Access-Control-Expose-Headers: ['Docker-Content-Digest', 'Link']
 auth:
   htpasswd:
     realm: basic-realm

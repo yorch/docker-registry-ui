@@ -1,0 +1,206 @@
+<image-details>
+  <button class="btn btn--sm details-trigger" onclick="{ open }" type="button" aria-label="Inspect { props.image.tag }">
+    <i class="material-icons" aria-hidden="true">info</i>
+    Details
+  </button>
+
+  <app-dialog
+    title="Image details"
+    opened="{ state.opened }"
+    on-close="{ close }"
+    wide="true"
+  >
+    <div class="details-heading">
+      <code>{ props.image.name }:{ props.image.tag }</code>
+      <span if="{ state.details?.isIndex }" class="badge badge--accent">Multi-platform index</span>
+      <span if="{ state.details && !state.details.isIndex }" class="badge">Single platform</span>
+    </div>
+
+    <div if="{ state.loading }" class="details-loading" role="status">
+      <span class="spinner" aria-hidden="true"></span>
+      Inspecting manifests, layers, and configuration…
+    </div>
+
+    <div if="{ state.error }" class="details-error" role="alert">
+      <strong>Details unavailable</strong>
+      <span>{ state.error }</span>
+      <button class="btn btn--sm" onclick="{ load }" type="button">Retry</button>
+    </div>
+
+    <div if="{ state.details }">
+      <dl class="summary-grid">
+        <div>
+          <dt>Index digest</dt>
+          <dd title="{ state.details.digest || 'Unavailable' }"><code>{ shortDigest(state.details.digest) }</code></dd>
+        </div>
+        <div>
+          <dt>Platforms</dt>
+          <dd>{ state.details.platforms.length }</dd>
+        </div>
+        <div>
+          <dt>Unique compressed layers</dt>
+          <dd>{ bytesToSize(state.details.size) }</dd>
+        </div>
+      </dl>
+
+      <div class="platform-list">
+        <article class="platform-card" each="{ platform in state.details.platforms }">
+          <div class="platform-card-header">
+            <strong>{ platformName(platform) }</strong>
+            <span>{ bytesToSize(platform.size) }</span>
+          </div>
+          <dl>
+            <div><dt>Manifest</dt><dd title="{ platform.digest || 'Unavailable' }"><code>{ shortDigest(platform.digest) }</code></dd></div>
+            <div><dt>Created</dt><dd>{ formatDate(platform.created) }</dd></div>
+            <div><dt>Layers</dt><dd>{ platform.layers.length }</dd></div>
+          </dl>
+        </article>
+      </div>
+      <p class="details-note">
+        Sizes are compressed layer bytes reported by manifests. Shared layers are counted once in the index total.
+      </p>
+    </div>
+
+    <div slot="footer">
+      <button class="btn" onclick="{ close }" type="button">Close</button>
+    </div>
+  </app-dialog>
+
+  <script>
+    import { RegistryClient } from '../../scripts/registry-client';
+    import { bytesToSize } from '../../scripts/utils';
+
+    export default {
+      open() {
+        this.update({ opened: true });
+        if (!this.state.details && !this.state.loading) this.load();
+      },
+      close() {
+        this.update({ opened: false });
+      },
+      async load() {
+        const generation = (this.generation || 0) + 1;
+        this.generation = generation;
+        this.update({ loading: true, error: undefined, details: undefined });
+        const client = new RegistryClient({
+          registryUrl: this.props.registryUrl,
+          onAuthentication: this.props.onAuthentication,
+          isRegistrySecured: this.props.isRegistrySecured,
+        });
+        try {
+          const details = await client.inspectTag(this.props.image.name, this.props.image.tag);
+          if (generation === this.generation) this.update({ details, loading: false });
+        } catch (error) {
+          if (generation === this.generation) this.update({ error: error.message || String(error), loading: false });
+        }
+      },
+      onBeforeUnmount() {
+        this.generation = (this.generation || 0) + 1;
+      },
+      platformName(platform) {
+        return `${platform.os}/${platform.architecture}${platform.variant ? '/' + platform.variant : ''}`;
+      },
+      shortDigest(digest) {
+        return digest ? `${digest.slice(0, 19)}…${digest.slice(-8)}` : 'Unavailable';
+      },
+      formatDate(value) {
+        return value ? new Date(value).toLocaleString() : 'Unavailable';
+      },
+      bytesToSize,
+    };
+  </script>
+
+  <style>
+    :host .details-trigger .material-icons {
+      font-size: 16px;
+    }
+
+    :host .details-heading,
+    :host .platform-card-header,
+    :host .details-loading,
+    :host .details-error {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    :host .details-heading {
+      justify-content: space-between;
+      margin-bottom: var(--space-4);
+    }
+
+    :host .details-heading code {
+      overflow-wrap: anywhere;
+    }
+
+    :host .details-loading,
+    :host .details-error {
+      min-height: 120px;
+      justify-content: center;
+      flex-direction: column;
+      color: var(--text-secondary);
+      text-align: center;
+    }
+
+    :host .details-error strong {
+      color: var(--danger);
+    }
+
+    :host .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-3);
+      margin: 0 0 var(--space-4);
+    }
+
+    :host .summary-grid > div,
+    :host .platform-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface-muted);
+      padding: var(--space-3);
+    }
+
+    :host dt {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+    }
+
+    :host dd {
+      margin: var(--space-1) 0 0;
+      color: var(--text-primary);
+    }
+
+    :host .platform-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: var(--space-3);
+    }
+
+    :host .platform-card-header {
+      justify-content: space-between;
+      margin-bottom: var(--space-2);
+    }
+
+    :host .platform-card dl,
+    :host .platform-card dl div {
+      margin: 0;
+    }
+
+    :host .platform-card dl div + div {
+      margin-top: var(--space-2);
+    }
+
+    :host .details-note {
+      margin: var(--space-4) 0 0;
+      color: var(--text-muted);
+      font-size: var(--fs-md);
+    }
+
+    @media screen and (max-width: 620px) {
+      :host .summary-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</image-details>

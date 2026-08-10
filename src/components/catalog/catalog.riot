@@ -48,6 +48,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     </div>
   </div>
 
+  <registry-operations
+    if="{ state.loadend }"
+    registry-url="{ props.registryUrl }"
+    catalog-elements-limit="{ state.catalogElementsLimit }"
+    on-notify="{ props.onNotify }"
+    on-authentication="{ props.onAuthentication }"
+    is-registry-secured="{ props.isRegistrySecured }"
+    is-image-remove-activated="{ props.isImageRemoveActivated }"
+    on-registry-changed="{ refresh }"
+  ></registry-operations>
+
   <div class="panel" if="{ !state.loadend }" role="status" aria-label="Loading repositories">
     <div class="skeleton-row" each="{ i in skeletonRows }">
       <span aria-hidden="true" class="skeleton skeleton-icon"></span>
@@ -88,14 +99,29 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     ></catalog-element>
   </div>
 
+  <div class="catalog-pagination" if="{ state.loadend && state.nextCatalogUrl }">
+    <p>
+      { state.repositoryNames.length } repositories loaded. More are available from the registry.
+    </p>
+    <div class="catalog-pagination-actions">
+      <button class="btn btn--primary" onclick="{ () => loadNextPage(false) }" disabled="{ state.loadingMore }" type="button">
+        { state.loadingMore ? 'Loading…' : 'Load More' }
+      </button>
+      <button class="btn" onclick="{ () => loadNextPage(true) }" disabled="{ state.loadingMore }" type="button">
+        Load All
+      </button>
+    </div>
+  </div>
+
   <script>
     import CatalogElement from './catalog-element.riot';
+    import RegistryOperations from './registry-operations.riot';
     import { Http } from '../../scripts/http';
     import { requestPool } from '../../scripts/request-pool';
     import { invalidateRegistry } from '../../scripts/cache-request';
     import { getBranching } from '../../scripts/repositories';
-    import { getRegistryServers } from '../../scripts/utils';
     import { matchSearch } from '../search-bar.riot';
+    import { parseNextLink, RegistryClient } from '../../scripts/registry-client';
 
     const SHOW_TAGLESS_KEY = 'registryUiShowTagless';
 
@@ -119,6 +145,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     export default {
       components: {
         CatalogElement,
+        RegistryOperations,
       },
       skeletonRows: [0, 1, 2, 3, 4, 5],
       state: {
@@ -126,6 +153,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         length: 0,
         loadend: false,
         repositories: [],
+        repositoryNames: [],
         registryUrl: '',
         counts: {},
         showTagless: true,
@@ -229,6 +257,70 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           });
         });
       },
+      fetchCounts(images, props, noCache = false) {
+        if (!props.showCatalogNbTags || !images.length) return;
+        const registryUrl = props.registryUrl;
+        let notified = false;
+        images.forEach((image) => {
+          this.fetchNbTags(image, props, noCache).then(({ count, error }) => {
+            if (error !== undefined) {
+              if (!notified) {
+                notified = true;
+                this.props.onNotify(error, true);
+              }
+              return this.queueCount(image, null, registryUrl);
+            }
+            this.queueCount(image, count, registryUrl);
+          });
+        });
+      },
+      displayRepositories(repositoryNames) {
+        const names = [...new Set(repositoryNames)].sort();
+        return typeof this.state.branching === 'function' ? this.state.branching(names) : names;
+      },
+      async loadNextPage(loadAll) {
+        if (!this.state.nextCatalogUrl || this.state.loadingMore) return;
+        const generation = this.requestGeneration;
+        const client = new RegistryClient({
+          registryUrl: this.props.registryUrl,
+          onAuthentication: this.props.onAuthentication,
+          isRegistrySecured: this.props.isRegistrySecured,
+        });
+        this.update({ loadingMore: true });
+        try {
+          let next = this.state.nextCatalogUrl;
+          const names = [...this.state.repositoryNames];
+          const knownNames = new Set(names);
+          const added = [];
+          do {
+            const page = await client.catalogPage({ url: next, visited: this.visitedCatalogUrls });
+            if (generation !== this.requestGeneration) return;
+            page.repositories.forEach((name) => {
+              if (!knownNames.has(name)) {
+                knownNames.add(name);
+                names.push(name);
+                added.push(name);
+              }
+            });
+            next = page.next;
+            this.update({
+              repositoryNames: names,
+              repositories: this.displayRepositories(names),
+              nImages: names.length,
+              nRepositories: names.length,
+              nextCatalogUrl: next,
+            });
+          } while (loadAll && next);
+          this.fetchCounts(added, this.props);
+        } catch (error) {
+          if (generation === this.requestGeneration) this.props.onNotify(error.message || error, true);
+        } finally {
+          // Unconditional: a registry switch mid-page bumps the generation, and
+          // gating this on it left the flag stuck true, disabling Load More /
+          // Load All for the rest of the session on the registry switched to.
+          this.update({ loadingMore: false });
+        }
+      },
       refresh() {
         this.display(this.props, this.state, true);
       },
@@ -244,7 +336,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           invalidateRegistry(props.registryUrl);
           this.update({ refreshing: true });
         } else {
-          this.update({ loadend: false, repositories: [], counts: {}, refreshing: false });
+          this.update({ loadend: false, repositories: [], repositoryNames: [], counts: {}, refreshing: false });
         }
         // Loading a different registry supersedes whatever page-level error the
         // previous one produced.
@@ -256,9 +348,15 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         // they would otherwise be served ahead of this registry's own.
         requestPool.drop();
         let repositories = [];
+        let repositoryNames = [];
+        let nextCatalogUrl;
         let nImages = 0;
         const self = this;
         const catalogUrl = `${props.registryUrl}/v2/_catalog?n=${state.catalogElementsLimit}`;
+        // Loop guard for the continuation links followed by loadNextPage. Seeded
+        // with the first page so a registry that advertises a next page pointing
+        // back at it stops here rather than paging forever.
+        this.visitedCatalogUrls = new Set([catalogUrl]);
         const oReq = new Http({
           onAuthentication: this.props.onAuthentication,
           withCredentials: props.isRegistrySecured,
@@ -266,12 +364,10 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         oReq.addEventListener('load', function () {
           if (generation !== self.requestGeneration) return;
           if (this.status === 200) {
-            repositories = JSON.parse(this.responseText).repositories || [];
-            repositories.sort();
-            nImages = repositories.length;
-            if (typeof state.branching === 'function') {
-              repositories = state.branching(repositories);
-            }
+            repositoryNames = (JSON.parse(this.responseText).repositories || []).sort();
+            repositories = self.displayRepositories(repositoryNames);
+            nImages = repositoryNames.length;
+            nextCatalogUrl = parseNextLink(this.getResponseHeader('Link'), catalogUrl);
           } else if (this.status === 404) {
             self.props.onNotify({ code: 'CATALOG_NOT_FOUND', url: catalogUrl }, true);
           } else if (this.status === 400) {
@@ -297,30 +393,15 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           // background and the badges fill in as each count arrives.
           self.update({
             repositories,
-            nRepositories: repositories.length,
+            repositoryNames,
+            nRepositories: repositoryNames.length,
             nImages,
+            nextCatalogUrl,
             counts: {},
             loadend: true,
             refreshing: false,
           });
-          if (props.showCatalogNbTags && repositories.length > 0) {
-            const registryUrl = props.registryUrl;
-            // A registry that rejects `/tags/list` rejects it for every
-            // repository; report the reason once instead of N times.
-            let notified = false;
-            collectImages(repositories).forEach((image) => {
-              self.fetchNbTags(image, props, refresh).then(({ count, error }) => {
-                if (error !== undefined) {
-                  if (!notified) {
-                    notified = true;
-                    self.props.onNotify(error, true);
-                  }
-                  return self.queueCount(image, null, registryUrl);
-                }
-                self.queueCount(image, count, registryUrl);
-              });
-            });
-          }
+          self.fetchCounts(repositoryNames, props, refresh);
         });
         oReq.open('GET', catalogUrl);
         this.activeRequest = oReq;
@@ -363,6 +444,35 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
     :host .list-group {
       animation: fade-in-up var(--dur-normal) var(--ease-out);
+    }
+
+    :host .catalog-pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      margin-top: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      color: var(--text-secondary);
+    }
+
+    :host .catalog-pagination p {
+      margin: 0;
+    }
+
+    :host .catalog-pagination-actions {
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    @media screen and (max-width: 600px) {
+      :host .catalog-pagination {
+        align-items: stretch;
+        flex-direction: column;
+      }
     }
   </style>
 </catalog>

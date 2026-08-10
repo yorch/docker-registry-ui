@@ -85,6 +85,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
               catalog-min-branches="{ props.catalogMinBranches }"
               catalog-max-branches="{ props.catalogMaxBranches }"
               is-registry-secured="{ truthy(props.isRegistrySecured) }"
+              is-image-remove-activated="{ truthy(props.isImageRemoveActivated) }"
             ></catalog>
           </route>
           <route path="{baseRoute}taglist/(.*)">

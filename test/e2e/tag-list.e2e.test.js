@@ -27,7 +27,13 @@ describe('tag list in a browser', function () {
   let page;
 
   before(async () => {
-    server = await startDevServer();
+    // A page size of two so the catalogue actually paginates against the mock
+    // registry, which holds far fewer repositories than any realistic limit.
+    // This applies to the whole suite on purpose: startDevServer binds port 8000
+    // and refuses to run alongside another instance, so isolating the pagination
+    // test would cost a second full rollup build. Every other test here reaches
+    // its tag list by route and never reads the catalogue.
+    server = await startDevServer({ CATALOG_ELEMENTS_LIMIT: '2' });
     browser = await chromium.launch();
   });
 
@@ -132,6 +138,41 @@ describe('tag list in a browser', function () {
     );
     assert.ok(arch.length > 0, 'the index should render at least one row');
     arch.forEach((platforms) => assert.deepEqual(platforms, ['amd64', 'arm64v8', 'ppc64le']));
+  });
+
+  it('should inspect every platform without presenting the first one as the whole index', async () => {
+    await openTagList('oci-index');
+    await page.waitForFunction(
+      () =>
+        [...document.querySelectorAll('tag-table tbody .image-size')].every(
+          (cell) => cell.textContent.trim() === 'Multiple',
+        ),
+      { timeout: 60000 },
+    );
+    await page
+      .locator('tag-table tbody tr')
+      .first()
+      .getByRole('button', { name: /inspect/i })
+      .click();
+    await page.waitForFunction(() => document.querySelectorAll('image-details .platform-card').length === 3, {
+      timeout: 60000,
+    });
+
+    const platforms = await cellsOn(page, 'image-details .platform-card strong');
+    assert.deepEqual(platforms, ['linux/amd64', 'linux/arm64/v8', 'linux/ppc64le']);
+    assert.match(await page.textContent('image-details .details-note'), /Shared layers are counted once/);
+  });
+
+  it('should follow catalog continuation links on demand', async () => {
+    await page.goto(server.url, { waitUntil: 'load' });
+    await page.waitForSelector('catalog .catalog-pagination');
+    assert.match(await page.textContent('catalog .catalog-pagination'), /2 repositories loaded/);
+
+    await page.getByRole('button', { name: 'Load More' }).click();
+    await page.waitForFunction(() =>
+      /4 repositories loaded/.test(document.querySelector('catalog .catalog-pagination')?.textContent),
+    );
+    assert.match(await page.textContent('catalog .catalog-stats'), /4 repositories/);
   });
 
   it('should page a large repository without an empty trailing page', async () => {

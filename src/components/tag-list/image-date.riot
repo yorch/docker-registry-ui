@@ -47,6 +47,9 @@
         props.image.trigger('get-date');
       },
       getDate(image) {
+        if (image.isIndex) {
+          return 'Multiple';
+        }
         if (image.ociImage) {
           return 'Not Available';
         }
@@ -60,6 +63,7 @@
         return `${dateFormat(image.creationDate)} ago`;
       },
       getLocalDate(image) {
+        if (image.isIndex) return 'Creation dates vary by platform';
         return !image.ociImage
           ? (image.creationDate && image.creationDate.toLocaleString()) || 'unknown'
           : 'unavailable on OCI index/Buildkit export cache';
