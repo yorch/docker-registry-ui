@@ -58,7 +58,7 @@ export class RequestPool {
         };
         try {
           task(done);
-        } catch (e) {
+        } catch (_e) {
           // A task that throws never reaches its own loadend handler, so it
           // would hold its slot for the life of the page.
           done();

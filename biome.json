@@ -7,11 +7,11 @@
       "**/*.json",
       "!**/*.riot",
       "!src/index.html",
-      "!dist/**",
-      "!.serve/**",
-      "!node_modules/**",
+      "!dist",
+      "!.serve",
+      "!node_modules",
       "!package-lock.json",
-      "!examples/electron/**",
+      "!examples/electron",
       "!examples/traefik/acme.json"
     ]
   },
@@ -30,7 +30,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "correctness": {
         "noInnerDeclarations": "off"
       },

@@ -1,10 +1,10 @@
 import { Http } from '../src/scripts/http.js';
 import { setCache } from '../src/scripts/cache-request.js';
-import assert from 'assert';
+import assert from 'node:assert';
 
 const REGISTRY = 'https://registry.example.com';
 const TAGS_URL = `${REGISTRY}/v2/nginx/tags/list`;
-const DIGEST = 'sha256:' + 'b2'.repeat(32);
+const DIGEST = `sha256:${'b2'.repeat(32)}`;
 
 const seed = (url, text) => setCache('GET', url, { responseText: text, dockerContentdigest: DIGEST });
 
@@ -65,7 +65,7 @@ describe('Http cache replay', () => {
   it('should expose the cached content digest', () => {
     seed(TAGS_URL, '{"tags":["latest"]}');
     const req = new Http({});
-    req.addEventListener('loadend', function () {});
+    req.addEventListener('loadend', () => {});
     req.open('GET', TAGS_URL);
     req.send();
     let digest;

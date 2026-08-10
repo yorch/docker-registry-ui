@@ -47,7 +47,7 @@ const preferDarkMode = ({ theme }) => {
       default:
         if (typeof window.matchMedia === 'function') {
           const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
-          return prefersDarkScheme && prefersDarkScheme.matches;
+          return prefersDarkScheme?.matches;
         }
     }
   }

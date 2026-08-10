@@ -30,12 +30,14 @@ const getLatestRepository = (repo, repoName) => {
   }
 };
 
-const cleanInt = (n) => (n === '' ? 1 : parseInt(n));
+const cleanInt = (n) => (n === '' ? 1 : parseInt(n, 10));
 
 export const getBranching = (min = 1, max = 1) => {
   min = cleanInt(min);
   max = cleanInt(max);
-  if (isNaN(min) || isNaN(max)) {
+  // Both have been through cleanInt, so they are numbers already and the
+  // non-coercing check is exactly equivalent to the global isNaN this replaced.
+  if (Number.isNaN(min) || Number.isNaN(max)) {
     throw new DockerRegistryUIError(`min and max must be integers: (min: ${min} and max: ${max}))`, ERROR_CODE);
   } else if (min > max) {
     throw new DockerRegistryUIError(`min must be inferior to max (min: ${min} <= max: ${max})`, ERROR_CODE);
@@ -49,7 +51,7 @@ export const getBranching = (min = 1, max = 1) => {
     min = 1;
   }
   return (repositories) =>
-    repositories.sort().reduce(function (acc, image) {
+    repositories.sort().reduce((acc, image) => {
       const split = image.split('/');
       if (split.length > min && min > 0) {
         const repoName = getRepositoryName(split, max);

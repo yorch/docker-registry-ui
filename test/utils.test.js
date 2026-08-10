@@ -1,5 +1,5 @@
 import { isNewestVersion, getNumPages, getPage } from '../src/scripts/utils.js';
-import assert from 'assert';
+import assert from 'node:assert';
 
 const range = (n) => Array.from({ length: n }, (_, i) => i + 1);
 

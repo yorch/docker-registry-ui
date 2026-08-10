@@ -31,7 +31,7 @@ export const taglistOrderParser = (taglistOrder) => {
     .map((e) => e.split('-').filter((e) => e))
     .reduce((acc, e, idx) => {
       if (e.length > 1) {
-        acc[e[0] + 'Asc'] = e[1] === 'asc';
+        acc[`${e[0]}Asc`] = e[1] === 'asc';
       }
       if (idx === 0) {
         acc.numFirst = e[0] === 'num';
@@ -55,7 +55,7 @@ export const splitTagToArray = (tag) =>
   tag
     .split('')
     .reduce(tagReduce, [])
-    .map((e) => (isDigit(e.charAt(0)) ? parseInt(e) : e));
+    .map((e) => (isDigit(e.charAt(0)) ? parseInt(e, 10) : e));
 
 const applyOrder = (order, e1, e2) => {
   if (e1 === e2) {

@@ -6,11 +6,11 @@ import {
   MUTABLE_TTL_MS,
   MAX_CACHE_ENTRIES,
 } from '../src/scripts/cache-request.js';
-import assert from 'assert';
+import assert from 'node:assert';
 
 const REGISTRY = 'https://registry.example.com';
 const OTHER_REGISTRY = 'https://other.example.com';
-const DIGEST = 'sha256:' + 'a1'.repeat(32);
+const DIGEST = `sha256:${'a1'.repeat(32)}`;
 const tagsList = (registry, name) => `${registry}/v2/${name}/tags/list`;
 const tagManifest = (registry, name, tag) => `${registry}/v2/${name}/manifests/${tag}`;
 const digestManifest = (registry, name) => `${registry}/v2/${name}/manifests/${DIGEST}`;
@@ -162,7 +162,7 @@ describe('cache-request', () => {
         setCache('GET', `${REGISTRY}/v2/nginx/manifests/${digest}`, body(String(i)), i + 1);
       }
       assert.ok(sessionStorage.length <= MAX_CACHE_ENTRIES);
-      assert.equal(getFromCache('GET', `${REGISTRY}/v2/nginx/manifests/${'sha256:' + '0'.repeat(64)}`), undefined);
+      assert.equal(getFromCache('GET', `${REGISTRY}/v2/nginx/manifests/${`sha256:${'0'.repeat(64)}`}`), undefined);
     });
   });
 });
