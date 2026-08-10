@@ -18,7 +18,12 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // `docs/` holds dated design records, including one that explicitly decided not
 // to rename at the time. Rewriting them would falsify the history.
-const EXEMPT = [/^docs\//];
+//
+// This file exempts itself, which is not an oversight being papered over: a
+// scanner for a string inevitably matches its own description of that string.
+// The first version of this test failed on its own header and was merged red,
+// because the e2e job was green and main is not branch-protected.
+const EXEMPT = [/^docs\//, /^test\/product-name\.test\.js$/];
 
 // Identifiers, not prose: the repo, the image, the custom element and the env
 // var keep their original names on purpose, because deployments depend on them.
