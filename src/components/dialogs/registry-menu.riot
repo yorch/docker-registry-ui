@@ -24,7 +24,12 @@
       type="button"
     >
       <span class="status-dot" aria-hidden="true"></span>
-      <span class="registry-label">{ stripHttps(props.registryUrl) || 'Registry' }</span>
+      <!--
+        REGISTRY_TITLE when the operator set one, otherwise the host. This is
+        the control that says which registry you are on, so it should show the
+        name they chose for it; the URL stays in the tooltip either way.
+      -->
+      <span class="registry-label">{ props.registryName || stripHttps(props.registryUrl) || 'Registry' }</span>
       <i class="material-icons">{ state.open ? 'expand_less' : 'expand_more' }</i>
     </button>
 

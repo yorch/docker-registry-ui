@@ -36,6 +36,30 @@
   flex: 1;
 }
 
+/* The single-registry counterpart to the registry menu's trigger: it reads the
+   same, but is text rather than a button, because there is nothing to open. */
+.topbar .registry-static {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.topbar .registry-static .status-dot {
+  width: 7px;
+  height: 7px;
+}
+
+.topbar .registry-static-label {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
 .brand {
   display: inline-flex;
   align-items: center;
