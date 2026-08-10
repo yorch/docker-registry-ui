@@ -1,15 +1,18 @@
 name: CI
 
+# `pull_request` only. Adding `push` as well ran the whole suite twice on every
+# commit to a branch with an open PR. Deduplicating those into one concurrency
+# group stopped the double spend, but the cancelled run stayed attached to the
+# pull request as a non-passing check, so every PR reported UNSTABLE with
+# nothing actually wrong. Not starting the second run is the better fix.
+#
+# The trade is that a branch pushed without a PR gets no CI. Opening the PR is
+# what asks for review, and that is when the answer matters.
 on:
   pull_request:
-  push:
-    branches-ignore: [main]
 
-# Pushing to a branch that has a PR open fires both triggers, which ran the
-# whole suite twice on the same commit. `head_ref` is the source branch on a
-# pull_request event and empty on a push, where `ref_name` is the branch -- so
-# both events land in one group and the second to start cancels the first.
-# The same group also cancels a superseded run when you push again mid-suite.
+# Still worth grouping: pushing again mid-suite should abandon a run that is now
+# testing a commit nobody cares about.
 concurrency:
   group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
