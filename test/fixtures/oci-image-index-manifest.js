@@ -1,3 +1,8 @@
+// biome-ignore-all lint/suspicious/noTemplateCurlyInString: captured registry data.
+// The `${NGINX_VERSION}` sequences are literal text inside nginx's own recorded
+// `created_by` history, not an interpolation someone forgot to write as a template.
+// Rewriting them would stop this fixture matching what a registry actually serves.
+
 /**
  * Manifest of an image created with:
  * docker buildx build --platform amd64,arm -t joxit/docker-registry-ui:buildx --push --provenance true .

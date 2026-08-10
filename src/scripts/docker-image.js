@@ -35,12 +35,12 @@ export const supportListManifest = (response) => {
 
 export const filterWrongManifests = (response) => {
   return response.manifests.filter(
-    ({ annotations }) => !annotations || annotations['vnd.docker.reference.type'] !== 'attestation-manifest',
+    ({ annotations }) => annotations?.['vnd.docker.reference.type'] !== 'attestation-manifest',
   );
 };
 
 export const platformToString = (platform) => {
-  if (!platform || !platform.architecture) {
+  if (!platform?.architecture) {
     return 'unknown';
   }
   return platform.architecture + (platform.variant ? platform.variant : '');
@@ -124,7 +124,7 @@ export class DockerImage {
       done();
       if (this.status === 200 || this.status === 202) {
         const response = JSON.parse(this.responseText);
-        oReq.getContentDigest(function (contentDigest) {
+        oReq.getContentDigest((contentDigest) => {
           self.contentDigest = contentDigest;
           self.trigger('content-digest', contentDigest);
           if (!contentDigest) self.opts.onNotify(ERROR_CAN_NOT_READ_CONTENT_DIGEST);
@@ -147,10 +147,8 @@ export class DockerImage {
         self.ociImage = response.mediaType === 'application/vnd.oci.image.index.v1+json';
         self.layers = response.layers || response.manifests;
         self.annotations = response.annotations;
-        self.size = self.layers.reduce(function (acc, e) {
-          return acc + e.size;
-        }, 0);
-        self.sha256 = response.config && response.config.digest;
+        self.size = self.layers.reduce((acc, e) => acc + e.size, 0);
+        self.sha256 = response.config?.digest;
         self.trigger('size', self.size);
         self.trigger('sha256', self.sha256);
         if (!self.ociImage) {
@@ -197,10 +195,8 @@ export class DockerImage {
         self.blobs = response;
         self.blobs.history = self.blobs.history || [];
         self.blobs.history
-          .filter(function (e) {
-            return !e.empty_layer;
-          })
-          .forEach(function (e, i) {
+          .filter((e) => !e.empty_layer)
+          .forEach((e, i) => {
             e.size = self.layers[i].size;
             e.id = self.layers[i].digest.replace('sha256:', '');
           });

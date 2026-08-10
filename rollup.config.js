@@ -17,8 +17,8 @@ import importSVG from './rollup/import-svg.js';
 import mockRegistryPlugin from './rollup/mock-registry-plugin.js';
 import { DEFAULT_MOCK_PORT } from './dev/mock-registry/server.js';
 import { devConfig, applyDevConfig } from './rollup/dev-config.js';
-import fs from 'fs';
-import { execFileSync } from 'child_process';
+import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 const version = JSON.parse(fs.readFileSync('./package.json', 'utf-8')).version;
 
 const useServe = process.env.ROLLUP_SERVE === 'true';
@@ -35,7 +35,7 @@ const serveConfig = devConfig({
 });
 
 const getVersion = (version) => {
-  const parts = version.split('.').map((e) => parseInt(e));
+  const parts = version.split('.').map((e) => parseInt(e, 10));
   if (useServe || process.env.DEVELOPMENT_BUILD) {
     parts[1]++;
     parts[2] = 0;

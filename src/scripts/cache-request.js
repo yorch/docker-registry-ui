@@ -44,18 +44,18 @@ const ourKeys = () => {
   try {
     for (let i = 0; i < sessionStorage.length; i++) {
       const key = sessionStorage.key(i);
-      if (key && key.startsWith(NAMESPACE)) {
+      if (key?.startsWith(NAMESPACE)) {
         keys.push(key);
       }
     }
-  } catch (e) {}
+  } catch (_e) {}
   return keys;
 };
 
 const remove = (key) => {
   try {
     sessionStorage.removeItem(key);
-  } catch (e) {}
+  } catch (_e) {}
 };
 
 const sweepExpired = (now) => {
@@ -65,7 +65,7 @@ const sweepExpired = (now) => {
       if (envelope && envelope.e != null && now > envelope.e) {
         remove(key);
       }
-    } catch (e) {
+    } catch (_e) {
       remove(key);
     }
   });
@@ -124,7 +124,7 @@ export const getFromCache = (method, url, now = Date.now(), variant = '') => {
       sessionStorage.setItem(entry.key, JSON.stringify(envelope));
     } catch (_error) {}
     return { responseText: envelope.r, dockerContentdigest: envelope.d };
-  } catch (e) {
+  } catch (_e) {
     remove(entry.key);
     return undefined;
   }
@@ -147,13 +147,13 @@ export const setCache = (method, url, { responseText, dockerContentdigest }, now
       return;
     }
     sessionStorage.setItem(entry.key, envelope);
-  } catch (e) {
+  } catch (_e) {
     // Out of room. Drop what has already expired and try once more; if it still
     // does not fit, run without caching this response.
     sweepExpired(now);
     try {
       sessionStorage.setItem(entry.key, envelope);
-    } catch (e2) {}
+    } catch (_e2) {}
   }
 };
 

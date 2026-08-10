@@ -3,7 +3,7 @@ import observable from '@riotjs/observable';
 import ImageSize from '../src/components/tag-list/image-size.riot';
 import Architectures from '../src/components/tag-list/architectures.riot';
 import ImageContentDigest from '../src/components/tag-list/image-content-digest.riot';
-import assert from 'assert';
+import assert from 'node:assert';
 
 // An image whose manifest never arrives -- the window in which these components
 // used to re-subscribe on every render. Delegates to a real observable, since

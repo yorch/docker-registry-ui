@@ -29,7 +29,7 @@ import {
   LAYER_MEDIA_TYPE,
 } from './fixtures.js';
 
-const sha256 = (text) => 'sha256:' + createHash('sha256').update(text).digest('hex');
+const sha256 = (text) => `sha256:${createHash('sha256').update(text).digest('hex')}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Every blob is addressed by the hash of what it contains, so a repository's

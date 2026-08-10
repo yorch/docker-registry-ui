@@ -1,6 +1,6 @@
 import { createMockRegistry } from '../dev/mock-registry/server.js';
 import { createHash } from 'node:crypto';
-import assert from 'assert';
+import assert from 'node:assert';
 
 const DOCKER_MANIFEST = 'application/vnd.docker.distribution.manifest.v2+json';
 const OCI_MANIFEST = 'application/vnd.oci.image.manifest.v1+json';
@@ -74,7 +74,7 @@ describe('mock registry', () => {
       // Content addressed for real: the digest must be the hash of the exact
       // bytes served, not merely a key that happens to resolve to them.
       const body = await response.text();
-      assert.equal(digest, 'sha256:' + createHash('sha256').update(body).digest('hex'));
+      assert.equal(digest, `sha256:${createHash('sha256').update(body).digest('hex')}`);
       const byDigest = await get(`/v2/nginx/manifests/${digest}`, { Accept: UI_ACCEPT });
       assert.equal(await byDigest.text(), body);
     });

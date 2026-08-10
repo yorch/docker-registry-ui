@@ -8,20 +8,24 @@ export const UNAVAILABLE_LABEL = '—';
 
 export function bytesToSize(bytes) {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  // The Number() coercion below is deliberate: `bytes` is a size read straight
+  // out of a config blob, so a non-numeric string has to land on the pending
+  // label rather than fall through and render "NaN undefined". A bare
+  // Number.isNaN would only catch an actual NaN.
   if (bytes === null) {
     return UNAVAILABLE_LABEL;
-  } else if (bytes == undefined || isNaN(bytes)) {
+  } else if (bytes == undefined || Number.isNaN(Number(bytes))) {
     return PENDING_LABEL;
   } else if (bytes === 0) {
     return '0 Byte';
   }
-  const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
-  const number = bytes / Math.pow(1024, i);
+  const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)), 10);
+  const number = bytes / 1024 ** i;
   if (number < 10) {
-    const decimal = (bytes - Math.floor(number) * Math.pow(1024, i)) / Math.pow(1024, i);
+    const decimal = (bytes - Math.floor(number) * 1024 ** i) / 1024 ** i;
     return `${Math.floor(number)}.${Math.floor(decimal * 10)} ${sizes[i]}`;
   }
-  return Math.ceil(number) + ' ' + sizes[i];
+  return `${Math.ceil(number)} ${sizes[i]}`;
 }
 
 export function dateFormat(date) {
@@ -43,12 +47,12 @@ export function dateFormat(date) {
     'years',
   ];
   const maxSeconds = [1, 60, 3600, 86400, 2592000, 31104000, Infinity];
-  const diff = (new Date() - date) / 1000;
+  const diff = (Date.now() - date) / 1000;
   for (var i = 0; i < maxSeconds.length - 1; i++) {
     if (maxSeconds[i] * 2 >= diff) {
       return labels[i * 2];
     } else if (maxSeconds[i + 1] > diff) {
-      return Math.floor(diff / maxSeconds[i]) + ' ' + labels[i * 2 + 1];
+      return `${Math.floor(diff / maxSeconds[i])} ${labels[i * 2 + 1]}`;
     }
   }
 }
@@ -176,13 +180,17 @@ export const ERROR_CAN_NOT_READ_CONTENT_DIGEST = {
 };
 
 export function getRegistryServers(i) {
+  // Called either with an index or with no argument at all. The global isNaN
+  // this replaced coerced undefined to NaN to tell those apart; Number.isNaN on
+  // its own reports false for undefined, which would index the array with it.
+  const wantsSingle = !Number.isNaN(Number(i));
   try {
     const res = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY));
-    if (res instanceof Array) {
-      return !isNaN(i) ? res[i] : res.map((url) => url.trim().replace(/\/*$/, ''));
+    if (Array.isArray(res)) {
+      return wantsSingle ? res[i] : res.map((url) => url.trim().replace(/\/*$/, ''));
     }
-  } catch (e) {}
-  return !isNaN(i) ? '' : [];
+  } catch (_e) {}
+  return wantsSingle ? '' : [];
 }
 
 export function setRegistryServers(registries) {
@@ -241,12 +249,13 @@ export function stringToArray(value) {
 }
 
 const compareNumbers = (a, b) => {
-  const na = parseInt(a);
-  const nb = parseInt(b);
+  const na = parseInt(a, 10);
+  const nb = parseInt(b, 10);
   if (na > nb) return 1;
   if (nb > na) return -1;
-  if (!isNaN(na) && isNaN(nb)) return 1;
-  if (isNaN(na) && !isNaN(nb)) return -1;
+  // Both are parseInt results, so they are numbers and need no coercion.
+  if (!Number.isNaN(na) && Number.isNaN(nb)) return 1;
+  if (Number.isNaN(na) && !Number.isNaN(nb)) return -1;
   return 0;
 };
 
@@ -274,5 +283,5 @@ export function parseJSON(json) {
   }
   try {
     return JSON.parse(json);
-  } catch (e) {}
+  } catch (_e) {}
 }

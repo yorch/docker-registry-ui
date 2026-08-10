@@ -2,7 +2,7 @@ import { supportListManifest, filterWrongManifests, platformToString } from '../
 import { dockerManifestList } from './fixtures/docker-manifest-list.js';
 import { ociImageIndexLayer } from './fixtures/oci-image-index-layer.js';
 import { ociImageIndexManifest } from './fixtures/oci-image-index-manifest.js';
-import assert from 'assert';
+import assert from 'node:assert';
 
 describe('docker-image', () => {
   describe('supportListManifest', () => {

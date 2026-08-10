@@ -4,17 +4,31 @@ import { bytesToSize, PENDING_LABEL, UNAVAILABLE_LABEL } from '../src/scripts/ut
 import ImageSize from '../src/components/tag-list/image-size.riot';
 import ImageDate from '../src/components/tag-list/image-date.riot';
 import Architectures from '../src/components/tag-list/architectures.riot';
-import assert from 'assert';
+import assert from 'node:assert';
 
 const pendingImage = () => {
   const inner = observable({});
   const image = {
     name: 'repo',
     tag: 'v1',
-    on: (e, f) => (inner.on(e, f), image),
-    one: (e, f) => (inner.one(e, f), image),
-    off: (e, f) => (inner.off(e, f), image),
-    trigger: (e, ...args) => (inner.trigger(e, ...args), image),
+    // Each returns `image` rather than the inner observable, so callers can
+    // chain the way riot's own observable does.
+    on: (e, f) => {
+      inner.on(e, f);
+      return image;
+    },
+    one: (e, f) => {
+      inner.one(e, f);
+      return image;
+    },
+    off: (e, f) => {
+      inner.off(e, f);
+      return image;
+    },
+    trigger: (e, ...args) => {
+      inner.trigger(e, ...args);
+      return image;
+    },
   };
   return image;
 };

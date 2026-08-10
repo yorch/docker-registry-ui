@@ -24,12 +24,12 @@ export class Http {
     this.oReq.getErrorMessage = getErrorMessage;
     this._events = {};
     this._headers = {};
-    this.onAuthentication = opts && opts.onAuthentication;
-    this.withCredentials = opts && opts.withCredentials;
+    this.onAuthentication = opts?.onAuthentication;
+    this.withCredentials = opts?.withCredentials;
     // Opt out for requests that must see the registry as it is right now. The
     // delete flow reads Docker-Content-Digest from a tag-addressed manifest and
     // then deletes by that digest, so a stale one deletes the wrong manifest.
-    this.noCache = Boolean(opts && opts.noCache);
+    this.noCache = Boolean(opts?.noCache);
   }
 
   getContentDigest(cb) {
@@ -42,7 +42,7 @@ export class Http {
     } else if (window.crypto && window.TextEncoder) {
       crypto.subtle
         .digest('SHA-256', new TextEncoder().encode(this.oReq.responseText || this.cache?.responseText))
-        .then(function (buffer) {
+        .then((buffer) => {
           cb(
             'sha256:' +
               Array.from(new Uint8Array(buffer))
@@ -69,15 +69,15 @@ export class Http {
               const req = new XMLHttpRequest();
               req._url = self._url;
               req.open(self._method, self._url);
-              for (let key in self._events) {
+              for (const key in self._events) {
                 req.addEventListener(key, self._events[key]);
               }
-              for (let key in self._headers) {
+              for (const key in self._headers) {
                 req.setRequestHeader(key, self._headers[key]);
               }
-              if (bearer && bearer.token) {
+              if (bearer?.token) {
                 req.setRequestHeader('Authorization', `Bearer ${bearer.token}`);
-              } else if (bearer && bearer.access_token) {
+              } else if (bearer?.access_token) {
                 req.setRequestHeader('Authorization', `Bearer ${bearer.access_token}`);
               } else {
                 req.withCredentials = true;
@@ -140,7 +140,7 @@ export class Http {
   send() {
     if (!this.noCache && !this.withCredentials) {
       const cache = getFromCache(this._method, this._url, Date.now(), this.cacheVariant());
-      if (cache && cache.responseText) {
+      if (cache?.responseText) {
         this.cache = cache;
         return this.replayFromCache(cache);
       }
@@ -184,15 +184,13 @@ export class Http {
 const hasHeader = function (header) {
   return this.getAllResponseHeaders()
     .split('\n')
-    .some(function (h) {
-      return new RegExp('^' + header + ':', 'i').test(h);
-    });
+    .some((h) => new RegExp(`^${header}:`, 'i').test(h));
 };
 
 const getErrorMessage = function () {
   if (this._url.match('^http://') && window.location.protocol === 'https:') {
     return { code: 'MIXED_CONTENT', url: this._url };
-  } else if (!this._url || !this._url.match('^http')) {
+  } else if (!this._url?.match('^http')) {
     return { code: 'INCORRECT_URL', url: this._url };
   } else if (this.withCredentials && !this.hasHeader('Access-Control-Allow-Credentials')) {
     return (
@@ -212,5 +210,5 @@ const AUTHENTICATE_HEADER_REGEX = /Bearer realm="(?<realm>[^"]+)",service="(?<se
 
 const parseAuthenticateHeader = (header) => {
   const exec = AUTHENTICATE_HEADER_REGEX.exec(header);
-  return exec && exec.groups;
+  return exec?.groups;
 };

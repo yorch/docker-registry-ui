@@ -1,5 +1,5 @@
 import { RequestPool, MAX_CONCURRENT_REQUESTS } from '../src/scripts/request-pool.js';
-import assert from 'assert';
+import assert from 'node:assert';
 
 // Each task records that it started and hands back its `done` so the test
 // decides when it finishes.

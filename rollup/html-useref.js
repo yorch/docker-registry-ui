@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'node:fs';
 
 const useref = /<!--\s*build:([a-z]+) ([-a-zA-Z./]+)\s*-->(.*?)<!--\s*endbuild\s*-->/ms;
 

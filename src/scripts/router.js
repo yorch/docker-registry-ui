@@ -31,7 +31,7 @@ function getQueryParams() {
 
 function updateQueryParams(qs) {
   const queryParams = getQueryParams();
-  for (let key in qs) {
+  for (const key in qs) {
     if (qs[key] === null) {
       delete queryParams[key];
     } else {
@@ -42,8 +42,8 @@ function updateQueryParams(qs) {
 }
 
 function toSearchString(queries) {
-  let search = [];
-  for (let key in queries) {
+  const search = [];
+  for (const key in queries) {
     if (key && queries[key] !== undefined) {
       search.push(`${key}=${queries[key]}`);
     }
@@ -85,7 +85,7 @@ export default {
   },
   getUrlQueryParam() {
     const queries = getQueryParams();
-    const url = queries['url'];
+    const url = queries.url;
     if (url) {
       try {
         return decodeURI(url);
@@ -99,6 +99,6 @@ export default {
   },
   getPageQueryParam() {
     const queries = getQueryParams();
-    return queries['page'];
+    return queries.page;
   },
 };
