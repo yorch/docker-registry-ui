@@ -175,6 +175,21 @@ describe('tag list in a browser', function () {
     assert.match(await page.textContent('catalog .catalog-stats'), /4 repositories/);
   });
 
+  it('should show the commit the bundle was built from, linked to its source', async () => {
+    // The dev server builds from this checkout, so rollup's git fallback fills
+    // the hash in -- the same field the image workflows supply via COMMIT_HASH.
+    await page.goto(server.url, { waitUntil: 'load' });
+    const link = page.locator('.app-footer .app-footer-commit');
+    await link.waitFor();
+
+    const short = (await link.textContent()).trim();
+    assert.match(short, /^[0-9a-f]{7}$/, 'the footer should show a seven-character short hash');
+
+    const href = await link.getAttribute('href');
+    assert.match(href, /^https:\/\/github\.com\/yorch\/docker-registry-ui\/commit\/[0-9a-f]{7,40}$/);
+    assert.ok(href.includes(`/commit/${short}`), 'the link should point at the commit it displays');
+  });
+
   it('should page a large repository without an empty trailing page', async () => {
     await openTagList('exactly-100');
     const rows = await page.$$eval('tag-table tbody tr', (els) => els.length);

@@ -50,6 +50,8 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            COMMIT_HASH=${{ github.sha }}
           push: true
           tags: |
             ghcr.io/yorch/docker-registry-ui:latest
@@ -65,6 +67,8 @@ jobs:
           context: .
           file: ./debian.dockerfile
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            COMMIT_HASH=${{ github.sha }}
           push: true
           tags: |
             ghcr.io/yorch/docker-registry-ui:debian

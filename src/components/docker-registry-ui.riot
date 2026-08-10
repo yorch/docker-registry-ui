@@ -126,7 +126,13 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       </main>
 
       <footer class="app-footer">
-        <span>Docker Registry UI { version }</span>
+        <span>
+          Docker Registry UI { version }
+          <span if="{ commit }">
+            &middot;
+            <a class="app-footer-commit" href="https://github.com/yorch/docker-registry-ui/commit/{ commit }" title="Built from commit { commit }" target="_blank" rel="noopener noreferrer">{ shortCommit }</a>
+          </span>
+        </span>
         <span class="app-footer-links">
           <a href="https://github.com/yorch/docker-registry-ui" target="_blank" rel="noopener noreferrer">GitHub</a>
           <a href="https://github.com/yorch/docker-registry-ui/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPL-3.0</a>
@@ -136,7 +142,9 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <app-snackbar message="{ state.snackbarMessage }" is-error="{ state.snackbarIsError }" on-dismiss="{ dismissSnackbar }"></app-snackbar>
   </div>
   <script>
-    import { version, latest } from '../../.version.json';
+    // `commit` is empty whenever the build had neither COMMIT_HASH nor a git
+    // checkout to read, which is what hides the footer link.
+    import { version, latest, commit } from '../../.version.json';
     import { Router, Route } from '@riotjs/route';
     import Catalog from './catalog/catalog.riot';
     import TagList from './tag-list/tag-list.riot';
@@ -280,6 +288,10 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       router,
       version,
       latest,
+      // Template expressions resolve against the component, not module scope,
+      // so these have to be exposed here to reach the footer.
+      commit,
+      shortCommit: commit.slice(0, 7),
       truthy,
       falsy,
       stringToArray,

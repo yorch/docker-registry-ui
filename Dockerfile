@@ -23,6 +23,11 @@ COPY rollup/ ./rollup/
 # load, so rollup cannot start without it -- production builds included.
 COPY dev/ ./dev/
 COPY src/ ./src/
+# The commit this bundle is built from, surfaced in the app footer. `.dockerignore`
+# does not allowlist `.git`, so rollup cannot read it here and the workflows pass
+# it in instead. Declared after the COPYs above so a new SHA does not invalidate
+# the `npm ci` layer. Leaving it unset is fine -- the footer omits the hash.
+ARG COMMIT_HASH
 RUN npm run build
 
 FROM nginx:alpine-slim
