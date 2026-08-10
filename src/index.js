@@ -1,10 +1,9 @@
 import { component, register } from 'riot';
-
-import DockerRegistryUI from './components/docker-registry-ui.riot';
+import AppCheckbox from './components/app-checkbox.riot';
 import AppDialog from './components/app-dialog.riot';
 import AppSnackbar from './components/app-snackbar.riot';
 import AppTabs from './components/app-tabs.riot';
-import AppCheckbox from './components/app-checkbox.riot';
+import DockerRegistryUI from './components/docker-registry-ui.riot';
 import TextField from './components/text-field.riot';
 
 import './styles/tokens.scss';

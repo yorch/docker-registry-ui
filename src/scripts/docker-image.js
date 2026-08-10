@@ -14,10 +14,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+import observable from '@riotjs/observable';
 import { Http } from './http.js';
 import { requestPool } from './request-pool.js';
 import { ERROR_CAN_NOT_READ_CONTENT_DIGEST } from './utils.js';
-import observable from '@riotjs/observable';
 
 export const supportListManifest = (response) => {
   if (response.mediaType === 'application/vnd.docker.distribution.manifest.list.v2+json') {

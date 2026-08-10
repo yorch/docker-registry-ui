@@ -3,8 +3,8 @@
  * so mocha can exercise components the same way rollup-plugin-riot builds them.
  */
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import { extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { compile, registerPreprocessor } from '@riotjs/compiler';
 
 // Components carry <style> blocks written in scss. The tests assert behaviour,

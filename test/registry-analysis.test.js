@@ -1,5 +1,5 @@
-import { planRetention, summarizeRegistry } from '../src/scripts/registry-analysis.js';
 import assert from 'node:assert';
+import { planRetention, summarizeRegistry } from '../src/scripts/registry-analysis.js';
 
 const record = (tag, created, digest = `sha256:${tag}`, repository = 'team/app') => ({
   repository,

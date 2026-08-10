@@ -1,12 +1,12 @@
+import assert from 'node:assert';
 import {
   getFromCache,
-  setCache,
-  invalidateRepository,
   invalidateRegistry,
-  MUTABLE_TTL_MS,
+  invalidateRepository,
   MAX_CACHE_ENTRIES,
+  MUTABLE_TTL_MS,
+  setCache,
 } from '../src/scripts/cache-request.js';
-import assert from 'node:assert';
 
 const REGISTRY = 'https://registry.example.com';
 const OTHER_REGISTRY = 'https://other.example.com';

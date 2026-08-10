@@ -17,16 +17,16 @@
  * a test, or a script without dragging anything along.
  */
 
-import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
 import {
-  fixtures as defaultFixtures,
+  CONFIG_MEDIA_TYPE,
   configBlobFor,
   DOCKER_MANIFEST,
-  OCI_MANIFEST,
-  OCI_INDEX,
-  CONFIG_MEDIA_TYPE,
+  fixtures as defaultFixtures,
   LAYER_MEDIA_TYPE,
+  OCI_INDEX,
+  OCI_MANIFEST,
 } from './fixtures.js';
 
 const sha256 = (text) => `sha256:${createHash('sha256').update(text).digest('hex')}`;

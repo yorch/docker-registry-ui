@@ -1,8 +1,8 @@
+import assert from 'node:assert';
 import { component } from 'riot';
+import { fixtures } from '../dev/mock-registry/fixtures.js';
 import { createMockRegistry } from '../dev/mock-registry/server.js';
 import TagListHost from './fixtures/tag-list-host.riot';
-import assert from 'node:assert';
-import { fixtures } from '../dev/mock-registry/fixtures.js';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 

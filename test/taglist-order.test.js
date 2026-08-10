@@ -1,7 +1,11 @@
-import { taglistOrderVariants, taglistOrderParser, splitTagToArray } from '../src/scripts/taglist-order.js';
-import { getTagComparator } from '../src/scripts/taglist-order.js';
-import { DockerRegistryUIError } from '../src/scripts/error.js';
 import assert from 'node:assert';
+import { DockerRegistryUIError } from '../src/scripts/error.js';
+import {
+  getTagComparator,
+  splitTagToArray,
+  taglistOrderParser,
+  taglistOrderVariants,
+} from '../src/scripts/taglist-order.js';
 
 describe('taglist-order tests', () => {
   describe('taglistOrderVariants', () => {

@@ -4,9 +4,10 @@
  * so authentication, credential mode, cache policy and concurrency stay
  * consistent with the catalogue and tag list.
  */
+
+import { filterWrongManifests, supportListManifest } from './docker-image.js';
 import { Http } from './http.js';
 import { requestPool } from './request-pool.js';
-import { filterWrongManifests, supportListManifest } from './docker-image.js';
 
 export const MANIFEST_ACCEPT = [
   'application/vnd.docker.distribution.manifest.v2+json',

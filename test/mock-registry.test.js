@@ -1,6 +1,6 @@
-import { createMockRegistry } from '../dev/mock-registry/server.js';
-import { createHash } from 'node:crypto';
 import assert from 'node:assert';
+import { createHash } from 'node:crypto';
+import { createMockRegistry } from '../dev/mock-registry/server.js';
 
 const DOCKER_MANIFEST = 'application/vnd.docker.distribution.manifest.v2+json';
 const OCI_MANIFEST = 'application/vnd.oci.image.manifest.v1+json';

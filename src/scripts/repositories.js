@@ -1,4 +1,5 @@
 import { DockerRegistryUIError } from './error.js';
+
 const ERROR_CODE = 'CATALOG_BRANCHING_CONFIGURATION';
 
 const getRepositoryName = (split, max) => {

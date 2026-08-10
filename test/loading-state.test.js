@@ -1,10 +1,10 @@
-import { component } from 'riot';
-import observable from '@riotjs/observable';
-import { bytesToSize, PENDING_LABEL, UNAVAILABLE_LABEL } from '../src/scripts/utils.js';
-import ImageSize from '../src/components/tag-list/image-size.riot';
-import ImageDate from '../src/components/tag-list/image-date.riot';
-import Architectures from '../src/components/tag-list/architectures.riot';
 import assert from 'node:assert';
+import observable from '@riotjs/observable';
+import { component } from 'riot';
+import Architectures from '../src/components/tag-list/architectures.riot';
+import ImageDate from '../src/components/tag-list/image-date.riot';
+import ImageSize from '../src/components/tag-list/image-size.riot';
+import { bytesToSize, PENDING_LABEL, UNAVAILABLE_LABEL } from '../src/scripts/utils.js';
 
 const pendingImage = () => {
   const inner = observable({});
