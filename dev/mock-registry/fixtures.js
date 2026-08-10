@@ -76,6 +76,14 @@ export const fixtures = [
     layerSizes: [7_300_000],
   },
   {
+    name: 'single-platform-index',
+    description:
+      'An OCI index wrapping exactly one manifest, which is what buildx produces for a single-platform build. One platform means one size and one date, so the tag list has to show them rather than "Multiple".',
+    tags: ['latest'],
+    index: [{ architecture: 'amd64', os: 'linux' }],
+    layerSizes: [2_500_000],
+  },
+  {
     name: 'broken-manifest',
     description: 'Lists tags, but every manifest 404s. Drives the unavailable state in each cell.',
     tags: ['latest', 'v1', 'v2'],

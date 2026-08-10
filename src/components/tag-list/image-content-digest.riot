@@ -64,6 +64,14 @@ Copyright (C) 2016-2023 Jones Magloire @Joxit
         return chars >= 70 ? '' : image.contentDigest || '';
       },
       getContentDigest(image, chars) {
+        // A row that subscribes before the first width broadcast is handed
+        // `undefined`, and every comparison against it is false. That reached
+        // `slice(0, undefined)`, which returns the whole string, so the cell
+        // rendered a full digest plus an ellipsis and was clipped mid-hash by
+        // the column's overflow -- one row wider than all the others.
+        if (!Number.isFinite(chars)) {
+          return '';
+        }
         if (chars >= 70) {
           return image.contentDigest || '';
         } else if (chars <= 0) {

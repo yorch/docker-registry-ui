@@ -67,11 +67,11 @@ Registry Explorer uses the same words as the [Distribution API](https://distribu
 The catalog header counts the first two, and they are usually different numbers. Given a registry holding:
 
 ```
-broken-manifest  empty  exactly-100  huge  nginx
-no-digest-header  oci-index  slow  team/service-a  team/service-b
+broken-manifest  empty  exactly-100  huge  nginx  no-digest-header
+oci-index  single-platform-index  slow  team/service-a  team/service-b
 ```
 
-the header reads **10 repositories · 9 namespaces** — ten pullable names, shown as nine top-level rows, because `team/service-a` and `team/service-b` collapse under a single `team/` row.
+the header reads **11 repositories · 10 namespaces** — eleven pullable names, shown as ten top-level rows, because `team/service-a` and `team/service-b` collapse under a single `team/` row.
 
 Two things follow from that:
 
