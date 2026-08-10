@@ -175,6 +175,29 @@ describe('tag list in a browser', function () {
     assert.match(await page.textContent('catalog .catalog-stats'), /4 repositories/);
   });
 
+  it('should count repositories and namespaces as different things', async () => {
+    await page.goto(server.url, { waitUntil: 'load' });
+    await page.waitForSelector('catalog .catalog-pagination');
+    await page.getByRole('button', { name: 'Load All' }).click();
+    await page.waitForFunction(() => !document.querySelector('catalog .catalog-pagination'));
+
+    const stats = await page.textContent('catalog .catalog-stats');
+    const repositories = Number(stats.match(/(\d+) repositories/)[1]);
+    const namespaces = Number(stats.match(/(\d+) namespaces/)[1]);
+
+    // `team/service-a` and `team/service-b` are two repositories under one
+    // namespace, so these two counts must not agree. Reporting the same number
+    // twice is exactly the bug the renamed labels are meant to make obvious.
+    assert.ok(repositories > namespaces, `expected fewer namespaces than repositories, got "${stats.trim()}"`);
+    assert.equal(repositories - namespaces, 1, 'only the two team/* repositories collapse into one namespace');
+
+    // "Namespace" is this UI's own term -- the registry has no such concept --
+    // so each badge has to explain itself in place.
+    const titles = await page.$$eval('catalog .catalog-stats .badge', (els) => els.map((e) => e.title));
+    assert.match(titles[0], /pull/i);
+    assert.match(titles[1], /grouped|grouping/i);
+  });
+
   it('should show the commit the bundle was built from, linked to its source', async () => {
     // The dev server builds from this checkout, so rollup's git fallback fills
     // the hash in -- the same field the image workflows supply via COMMIT_HASH.

@@ -1,4 +1,4 @@
-# Docker Registry User Interface
+# Registry Explorer
 
 [![Version](https://img.shields.io/github/release/yorch/docker-registry-ui?display_name=tag&sort=semver)](https://github.com/yorch/docker-registry-ui/releases)
 [![Stars](https://img.shields.io/github/stars/yorch/docker-registry-ui.svg?logo=github&maxAge=86400)](https://github.com/yorch/docker-registry-ui/stargazers)
@@ -34,13 +34,13 @@ This web user interface uses [Riot](https://github.com/Riot/riot) the react-like
 
 Images are published to [`ghcr.io/yorch/docker-registry-ui`](https://github.com/yorch/docker-registry-ui/pkgs/container/docker-registry-ui).
 
-* `latest`: image with the latest release of Docker Registry UI based on `nginx:alpine`
-* `latest-debian`: image with the latest release of Docker Registry UI based on `nginx:debian`
-* `main`: image with the beta version of Docker Registry UI based on `nginx:alpine`
-* `main-debian`: image with the beta version of Docker Registry UI based on `nginx:debian`
-* `2`: image with the latest release of Docker Registry UI v2 (includes latest minor and patch version)
-* `2.x`: image with the latest release of Docker Registry UI v2.x (includes latest patch version)
-* `2.x.y`: image with the specific release of Docker Registry UI v2.x.y
+* `latest`: image with the latest release of Registry Explorer based on `nginx:alpine`
+* `latest-debian`: image with the latest release of Registry Explorer based on `nginx:debian`
+* `main`: image with the beta version of Registry Explorer based on `nginx:alpine`
+* `main-debian`: image with the beta version of Registry Explorer based on `nginx:debian`
+* `3`: image with the latest release of Registry Explorer v3 (includes latest minor and patch version)
+* `3.x`: image with the latest release of Registry Explorer v3.x (includes latest patch version)
+* `3.x.y`: image with the specific release of Registry Explorer v3.x.y
 * each of the above also has a `-debian` variant built on `nginx:debian`
 
 ```sh
@@ -49,7 +49,33 @@ docker pull ghcr.io/yorch/docker-registry-ui:latest
 
 ## [Project Page](https://yorch.github.io/docker-registry-ui), [Examples](https://github.com/yorch/docker-registry-ui/tree/main/examples)
 
-![preview](./screenshot.png "Preview of Docker Registry UI")
+![preview](./screenshot.png "Preview of Registry Explorer")
+
+## Concepts
+
+Registry Explorer uses the same words as the [Distribution API](https://distribution.github.io/distribution/spec/api/), with one addition of its own.
+
+| Term | What it is | Example |
+| --- | --- | --- |
+| **Repository** | A name you can pull. One entry in the registry's `/v2/_catalog`. | `team/service-a` |
+| **Namespace** | A group of repositories sharing a leading path segment. **A display grouping only** — the registry does not store namespaces and the API never returns them. | `team/` |
+| **Image** | A repository plus a tag: one thing you built and pushed. | `nginx:1.27` |
+| **Tag** | A mutable label pointing at a manifest inside one repository. | `1.27` |
+| **Manifest** | What a tag resolves to. Either a single-platform image or an index listing one manifest per platform. | `sha256:a1b2…` |
+
+The catalog header counts the first two, and they are usually different numbers. Given a registry holding:
+
+```
+broken-manifest  empty  exactly-100  huge  nginx
+no-digest-header  oci-index  slow  team/service-a  team/service-b
+```
+
+the header reads **10 repositories · 9 namespaces** — ten pullable names, shown as nine top-level rows, because `team/service-a` and `team/service-b` collapse under a single `team/` row.
+
+Two things follow from that:
+
+- The namespace count is *rows in the tree*, not the number of prefixes. Ungrouped repositories count as one row each, so a registry where nothing shares a prefix legitimately reports the same number twice.
+- Grouping is presentation, not data. Set `CATALOG_MIN_BRANCHES=0` and `CATALOG_MAX_BRANCHES=0` to switch it off and get one row per repository; raise `CATALOG_MAX_BRANCHES` to nest deeper (`a/b/c` grouping under `a/b/` rather than `a/`). Nothing about the registry changes either way.
 
 ## Hidden Features
 
@@ -59,7 +85,7 @@ docker pull ghcr.io/yorch/docker-registry-ui:latest
   - Select all contigous tags between two tags with `Shift + Click` on the first tag then `Shift + Click` on the second tag (see [#287](https://github.com/Joxit/docker-registry-ui/pull/287)). Since 2.4.0
 - Show sha256 for specific tag (hover image tag).
 - Sort the tag list with number compatibility (see [#45](https://github.com/Joxit/docker-registry-ui/pull/45) and [#46](https://github.com/Joxit/docker-registry-ui/pull/46)). Since 0.4.0
-- Share your docker registry UI when you are deploying a UI with `SINGLE_REGISTRY=false`.
+- Share your Registry Explorer instance when you are deploying a UI with `SINGLE_REGISTRY=false`.
   - Point any deployed instance at a registry with the `url` query parameter (e.g. `https://ui.example.com?url=https://registry.example.com`). The registry must allow CORS from wherever the UI is served. This fork does not host a public instance, so unlike upstream there is no shared demo URL to use here.
   - You can use a single interface with many registry, add them in the menu in the top right of the page.
 - Filter images and tags with the search bar.
@@ -90,7 +116,7 @@ Checkout all options in [Available options](#available-options) section.
     -   This fixes the issue [#88](https://github.com/Joxit/docker-registry-ui/issues/88). More about this in [#113](https://github.com/Joxit/docker-registry-ui/issues/113).
 -   Why OPTIONS (aka preflight requests) and DELETE fails with 401 status code (using Basic Auth) or why the UI says to check my `Access-Control-Allow-Origin` ?
     -   This is caused by a bug in docker registry, it returns 401 status requests on preflight requests, this breaks [W3C preflight-request specification](https://www.w3.org/TR/cors/#preflight-request). The docker registry maintainers have stated this will never be fixed ([distribution/distribution#4458](https://github.com/distribution/distribution/issues/4458)). It is suggested to have your UI on the same domain than your registry e.g. registry.example.com/ui/ **or** use `NGINX_PROXY_PASS_URL` **or** configure a nginx/apache/haproxy in front of your registry that returns 200 on each OPTIONS requests. (see [#104](https://github.com/Joxit/docker-registry-ui/issues/104), [#204](https://github.com/Joxit/docker-registry-ui/issues/204), [#207](https://github.com/Joxit/docker-registry-ui/issues/207), [#214](https://github.com/Joxit/docker-registry-ui/issues/214), [#266](https://github.com/Joxit/docker-registry-ui/issues/266), [#278](https://github.com/Joxit/docker-registry-ui/issues/278)).
--   Can I use the docker registry ui as a standalone application (with Electron) ?
+-   Can I use Registry Explorer as a standalone application (with Electron) ?
     -   Yes, check out the example [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/electron). (see [#129](https://github.com/Joxit/docker-registry-ui/pull/129))
 -   I deleted images through the UI, but they are still present on the server. How can I delete them?
     - When you delete an image with the UI, only the reference is deleted and not the content. To remove dangling images, you need to run the garbage collector of the registry with the command `registry garbage-collect config.yml` or `docker exec registry registry garbage-collect config.yml`. (see [#77](https://github.com/Joxit/docker-registry-ui/issues/77), [#147](https://github.com/Joxit/docker-registry-ui/issues/147))
@@ -136,14 +162,14 @@ Some env options are available for use this interface for **only one server** (w
 - `THEME_*`: See table in [Theme options](#theme-options) section (see [#283](https://github.com/Joxit/docker-registry-ui/pull/283)). Since 2.4.0
 - `TAGLIST_ORDER`: Set the default order for the taglist page, could be `num-asc;alpha-asc`, `num-desc;alpha-asc`, `num-asc;alpha-desc`, `num-desc;alpha-desc`, `alpha-asc;num-asc`, `alpha-asc;num-desc`, `alpha-desc;num-asc` or `alpha-desc;num-desc` (see [#307](https://github.com/Joxit/docker-registry-ui/pull/307)). (default: `alpha-asc;num-desc`). Since 2.5.0
 - `CATALOG_DEFAULT_EXPANDED`: Expand by default all repositories in catalog (see [#302](https://github.com/Joxit/docker-registry-ui/issues/302)). (default: `false`). Since 2.5.0
-- `CATALOG_MIN_BRANCHES`: Set the minimum repository/namespace to expand (e.g. `yorch/docker-registry-ui` `yorch/` is the repository/namespace). Branching can be disabled if min and max are set to 0. (see [#319](https://github.com/Joxit/docker-registry-ui/pull/319)). (default: `1`). Since 2.5.0
-- `CATALOG_MAX_BRANCHES`: Set the maximum repository/namespace to expand (e.g. `yorch/docker-registry-ui` `yorch/` is the repository/namespace). Branching can be disabled if min and max are set to 0. (see [#319](https://github.com/Joxit/docker-registry-ui/pull/319)). (default: `1`). Since 2.5.0
+- `CATALOG_MIN_BRANCHES`: Set the minimum namespace depth to expand (e.g. in `yorch/docker-registry-ui`, `yorch/` is the namespace and the whole string is the repository). Branching can be disabled if min and max are set to 0. (see [#319](https://github.com/Joxit/docker-registry-ui/pull/319)). (default: `1`). Since 2.5.0
+- `CATALOG_MAX_BRANCHES`: Set the maximum namespace depth to expand (e.g. in `yorch/docker-registry-ui`, `yorch/` is the namespace and the whole string is the repository). Branching can be disabled if min and max are set to 0. (see [#319](https://github.com/Joxit/docker-registry-ui/pull/319)). (default: `1`). Since 2.5.0
 - `TAGLIST_PAGE_SIZE`: Set the number of tags to display in one page. (default: `100`). Since 2.5.0
 - `REGISTRY_SECURED`: By default, the UI will check on every requests if your registry is secured or not (you will see `401` responses in your console). Set to `true` if your registry uses Basic Authentication and divide by two the number of call to your registry. (default `false`). Since 2.5.0
 - `SHOW_TAG_HISTORY`: Whether to show the tag history feature or not. Allows to simplify the user interface by hiding it form the tag list if set to `false`. (default: `true`).
 There are some examples with [docker-compose](https://docs.docker.com/compose/) and docker-registry-ui as proxy [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-proxy/) or docker-registry-ui as standalone [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-standalone/).
-- `DOCKER_REGISTRY_UI_TITLE`: Set a custom title displayed in the header bar. (default: `Docker Registry UI`).
-- `ENABLE_VERSION_NOTIFICATION`: Display notification when a new version of Docker Registry UI is available. This is a weekly check. (default: `true`).
+- `DOCKER_REGISTRY_UI_TITLE`: Set a custom title displayed in the header bar. (default: `Registry Explorer`).
+- `ENABLE_VERSION_NOTIFICATION`: Display notification when a new version of Registry Explorer is available. This is a weekly check. (default: `true`).
 
 ### Theme options
 
@@ -165,7 +191,7 @@ The default palettes follow a modern SaaS look (neutral surfaces + green accent)
 
 ## Recommended Docker Registry Usage
 
-Here is a simple usage of Docker Registry UI with Docker Registry Server using docker-compose. This example should work for most of your use case and your UI will be on the same domain as you registry.
+Here is a simple usage of Registry Explorer with Docker Registry Server using docker-compose. This example should work for most of your use case and your UI will be on the same domain as you registry.
 
 ```yml
 version: '3.8'
@@ -178,7 +204,7 @@ services:
       - 80:80
     environment:
       - SINGLE_REGISTRY=true
-      - REGISTRY_TITLE=Docker Registry UI
+      - REGISTRY_TITLE=My Private Registry
       - DELETE_IMAGES=true
       - SHOW_CONTENT_DIGEST=true
       - NGINX_PROXY_PASS_URL=http://registry-server:5000

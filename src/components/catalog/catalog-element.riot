@@ -17,38 +17,38 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 <catalog-element>
   <div
     class="content"
-    if="{!props.filterResults || state.nImages > 0 || matchSearch(props.filterResults, state.image)}"
+    if="{!props.filterResults || state.nRepositories > 0 || matchSearch(props.filterResults, state.repository)}"
   >
     <div class="tree-node { state.expanded ? 'expanded' : '' }">
       <div
-        class="list-row { state.images ? 'is-group' : 'is-leaf' }"
+        class="list-row { state.repositories ? 'is-group' : 'is-leaf' }"
         if="{ isRowVisible(props, state) }"
       >
-        <a if="{ state.image }" class="row-main" href="{ router.taglist(state.image) }">
+        <a if="{ state.repository }" class="row-main" href="{ router.taglist(state.repository) }">
           <i class="material-icons row-icon">send</i>
-          <span class="row-label">{ state.image }</span>
+          <span class="row-label">{ state.repository }</span>
         </a>
         <button
-          if="{ state.images }"
+          if="{ state.repositories }"
           class="row-main"
           aria-expanded="{ state.expanded }"
           onclick="{ onClick }"
           type="button"
         >
           <i class="material-icons row-icon">folder</i>
-          <span class="row-label">{ state.repo }</span>
+          <span class="row-label">{ state.namespace }</span>
         </button>
         <span class="row-meta">
-          <span if="{ state.images }" class="badge" title="{ state.nImages } images">{ state.nImages }</span>
+          <span if="{ state.repositories }" class="badge" title="{ state.nRepositories } repositories">{ state.nRepositories }</span>
           <span
-            if="{ props.showCatalogNbTags && state.image }"
+            if="{ props.showCatalogNbTags && state.repository }"
             class="badge badge--accent { typeof state.nbTags === 'number' ? '' : 'is-pending' }"
             title="{ nbTagsTitle(state.nbTags) }"
           >
             <i class="material-icons badge-icon">sell</i>
             { nbTagsLabel(state.nbTags) }
           </span>
-          <i if="{ state.images }" class="material-icons row-chevron { state.expanded ? 'expanded' : '' }">
+          <i if="{ state.repositories }" class="material-icons row-chevron { state.expanded ? 'expanded' : '' }">
             expand_more
           </i>
         </span>
@@ -64,7 +64,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           counts="{ props.counts }"
           catalog-default-expanded="{ props.catalogDefaultExpanded }"
           is-registry-secured="{ props.isRegistrySecured }"
-          each="{ item in state.images }"
+          each="{ item in state.repositories }"
           item="{ item }"
         ></catalog-element>
       </div>
@@ -76,13 +76,13 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
     export default {
       onBeforeMount(props, state) {
-        if (props.item.images && props.item.images.length === 1) {
-          state.image = props.item.images[0];
+        if (props.item.repositories && props.item.repositories.length === 1) {
+          state.repository = props.item.repositories[0];
         } else if (typeof props.item === 'string') {
-          state.image = props.item;
-        } else if (props.item.images && props.item.repo) {
-          state.images = props.item.images;
-          state.repo = props.item.repo;
+          state.repository = props.item;
+        } else if (props.item.repositories && props.item.namespace) {
+          state.repositories = props.item.repositories;
+          state.namespace = props.item.namespace;
           state.expanded = props.catalogDefaultExpanded;
         }
         this.sync(props, state);
@@ -91,37 +91,37 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         this.sync(props, state);
       },
       sync(props, state) {
-        if (props.showCatalogNbTags && state.image) {
-          state.nbTags = props.counts && props.counts[state.image];
+        if (props.showCatalogNbTags && state.repository) {
+          state.nbTags = props.counts && props.counts[state.repository];
         }
-        state.nImages = state.images ? this.countVisibleImages(state.images, props) : undefined;
+        state.nRepositories = state.repositories ? this.countVisibleRepositories(state.repositories, props) : undefined;
       },
       // Images nest: CATALOG_MAX_BRANCHES > CATALOG_MIN_BRANCHES makes a group's
-      // `images` hold sub-groups as well as image names, so walk the tree. The
+      // `repositories` holds sub-namespaces as well as repository names, so walk the tree. The
       // result drives both the badge and whether the group renders at all, so a
       // group whose images are all filtered out disappears with them instead of
       // sitting there empty with a count of hidden children.
-      countVisibleImages(items, props) {
+      countVisibleRepositories(items, props) {
         return items.reduce((acc, item) => {
           if (typeof item === 'string') {
-            return acc + (this.isImageVisible(item, props) ? 1 : 0);
+            return acc + (this.isRepositoryVisible(item, props) ? 1 : 0);
           }
-          return acc + (item.images ? this.countVisibleImages(item.images, props) : 0);
+          return acc + (item.repositories ? this.countVisibleRepositories(item.repositories, props) : 0);
         }, 0);
       },
-      isImageVisible(image, props) {
-        if (!matchSearch(props.filterResults, image)) {
+      isRepositoryVisible(repository, props) {
+        if (!matchSearch(props.filterResults, repository)) {
           return false;
         }
         if (!props.showCatalogNbTags || props.showTagless) {
           return true;
         }
-        const nbTags = props.counts && props.counts[image];
+        const nbTags = props.counts && props.counts[repository];
         return nbTags === null || nbTags > 0;
       },
-      // With "show images without tags" off, only reveal a leaf once its count
+      // With "show repositories without tags" off, only reveal a leaf once its count
       // is known to be non-zero. Treating a pending count as visible made every
-      // tagless image render and then vanish as the counts landed. Growing the
+      // tagless repository render and then vanish as the counts landed. Growing the
       // list is fine; removing rows after paint shifts the layout under the
       // user. A failed count (`null`) stays visible: we could not verify it is
       // tagless, so hiding it would be a guess.
@@ -129,8 +129,8 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         if (!props.showCatalogNbTags || props.showTagless) {
           return true;
         }
-        if (state.images) {
-          return state.nImages > 0;
+        if (state.repositories) {
+          return state.nRepositories > 0;
         }
         return state.nbTags === null || state.nbTags > 0;
       },
@@ -149,7 +149,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       },
       onClick() {
         const state = this.state;
-        if (state.repo) {
+        if (state.namespace) {
           this.update({
             expanded: !state.expanded,
           });

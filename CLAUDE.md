@@ -15,6 +15,25 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 - `npm run lint` — `biome check .`
 - `npm run format` — `biome format --write .`
 
+## Naming
+
+- **The product is "Registry Explorer".** The repo, the npm package, the GHCR image
+  path, the `<docker-registry-ui>` custom element and the `DOCKER_REGISTRY_UI_TITLE`
+  environment variable all still say `docker-registry-ui` on purpose — those are
+  identifiers people have already deployed against, and renaming them is a breaking
+  change. Only prose and UI chrome carry the product name.
+- **Vocabulary, matching the Distribution API rather than contradicting it:**
+  - a **repository** is a pullable name (`team/service-a`) — one entry in `/v2/_catalog`
+  - a **namespace** is the leading path segment repositories are grouped under for
+    display (`team/`), built by `getBranching`
+  - an **image** is a `name:tag` pair, which is what `DockerImage` and the tag list
+    mean by it
+  The catalog badges read "N repositories" and "N namespaces", and the tree nodes are
+  `{ namespace, repositories: [...] }`. Before this was settled, the header said
+  "N images / N repositories" where "repositories" actually meant namespaces — the
+  exact inversion of the API's own wording, and it hid a bug where both counts were
+  the same number reported twice. An e2e test now asserts the two counts differ.
+
 ## Conventions
 
 - Components are Riot single-file components (`.riot`) under `src/components/`.

@@ -2,7 +2,7 @@
   "name": "docker-registry-ui",
   "version": "1.4.8",
   "productName": "Registry UI",
-  "description": "Electron Application for Docker Registry UI",
+  "description": "Electron Application for Registry Explorer",
   "main": "index.js",
   "scripts": {
     "start": "electron ./",

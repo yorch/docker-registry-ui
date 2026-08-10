@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2016-2023 Jones Magloire @Joxit
  *
- * Theme handling for Docker Registry UI.
+ * Theme handling for Registry Explorer.
  *
  * The light and dark palettes live in `src/styles/tokens.scss` and are
  * selected by setting `data-theme` on the root element. This module decides

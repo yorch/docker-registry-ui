@@ -4,7 +4,7 @@ In this example, we'll see how to configure your keycloak server and use token a
 
 ![token protocol](https://docs.docker.com/registry/spec/images/v2-registry-auth.png)
 
-In this image, we will replace the docker client/daemon by the Docker Registry UI. Here are the steps:
+In this image, we will replace the docker client/daemon by the Registry Explorer. Here are the steps:
 
 1. Attempt to get a resource (catalog, image info, image delete) with the registry.
 2. If the registry requires authorization it will return a `401 Unauthorized` HTTP response with information on how to authenticate.

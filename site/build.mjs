@@ -36,6 +36,7 @@ const IMAGE = 'ghcr.io/yorch/docker-registry-ui';
  */
 const DOC_SECTIONS = [
   'Supported Docker tags',
+  'Concepts',
   'Hidden Features',
   'Available options',
   'Recommended Docker Registry Usage',
@@ -257,7 +258,7 @@ const homeBody = `
               src="./screenshot.png"
               width="2880"
               height="1240"
-              alt="The Docker Registry UI catalog, showing repositories grouped by namespace with tag-count badges"
+              alt="The Registry Explorer catalog, showing repositories grouped by namespace with tag-count badges"
               loading="lazy"
             />
           </div>
@@ -408,7 +409,7 @@ const build = async () => {
   await writeFile(
     join(out, 'index.html'),
     layout({
-      title: 'Docker Registry UI — a web interface for your private registry',
+      title: 'Registry Explorer — a web interface for your private registry',
       description:
         'A fast, dependency-free web interface for a private Docker registry. Browse the catalog, inspect layer history, and delete tags.',
       page: 'home',
@@ -420,9 +421,9 @@ const build = async () => {
   await writeFile(
     join(out, 'docs.html'),
     layout({
-      title: 'Documentation — Docker Registry UI',
+      title: 'Documentation — Registry Explorer',
       description:
-        'Configuration reference for Docker Registry UI: environment variables, theming, CORS, deletion, and worked registry examples.',
+        'Configuration reference for Registry Explorer: environment variables, theming, CORS, deletion, and worked registry examples.',
       page: 'docs',
       canonical: `${SITE_URL}/docs.html`,
       body: docsBody,

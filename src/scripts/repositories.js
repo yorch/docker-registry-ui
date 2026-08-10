@@ -2,32 +2,40 @@ import { DockerRegistryUIError } from './error.js';
 
 const ERROR_CODE = 'CATALOG_BRANCHING_CONFIGURATION';
 
-const getRepositoryName = (split, max) => {
-  let repositoryName = '';
+/*
+ * Vocabulary, matching the Distribution API rather than contradicting it:
+ * a REPOSITORY is a pullable name such as `team/service-a`, and a NAMESPACE is
+ * the leading path segment several repositories are grouped under for display.
+ * This file turns a flat list of repositories into a tree of namespace nodes,
+ * `{ namespace, repositories: [...] }`, mixed with bare repository strings for
+ * anything that was not grouped.
+ */
+const getNamespaceName = (split, max) => {
+  let namespace = '';
   for (let i = 0; i < Math.min(max, split.length - 1); i++) {
-    repositoryName += `${split[i]}/`;
+    namespace += `${split[i]}/`;
   }
-  return repositoryName;
+  return namespace;
 };
 
-const getLatestRepository = (repo, repoName) => {
-  if (!repo.images) {
+const getLatestNamespace = (node, namespace) => {
+  if (!node.repositories) {
     return;
   }
-  if (repo.repo === repoName) {
-    return repo;
+  if (node.namespace === namespace) {
+    return node;
   }
-  for (let i = 0; i < repo.images.length; i++) {
-    const res = getLatestRepository(repo.images[i], repoName);
+  for (let i = 0; i < node.repositories.length; i++) {
+    const res = getLatestNamespace(node.repositories[i], namespace);
     if (res) {
       return res;
     }
   }
 
-  if (repoName.startsWith(repo.repo)) {
-    const newRepo = { repo: repoName, images: [] };
-    repo.images.push(newRepo);
-    return newRepo;
+  if (namespace.startsWith(node.namespace)) {
+    const child = { namespace, repositories: [] };
+    node.repositories.push(child);
+    return child;
   }
 };
 
@@ -52,22 +60,22 @@ export const getBranching = (min = 1, max = 1) => {
     min = 1;
   }
   return (repositories) =>
-    repositories.sort().reduce((acc, image) => {
-      const split = image.split('/');
+    repositories.sort().reduce((acc, repository) => {
+      const split = repository.split('/');
       if (split.length > min && min > 0) {
-        const repoName = getRepositoryName(split, max);
-        let repo = acc.length > 0 && getLatestRepository(acc[acc.length - 1], repoName);
-        if (!repo) {
-          repo = {
-            repo: repoName,
-            images: [],
+        const namespace = getNamespaceName(split, max);
+        let node = acc.length > 0 && getLatestNamespace(acc[acc.length - 1], namespace);
+        if (!node) {
+          node = {
+            namespace,
+            repositories: [],
           };
-          acc.push(repo);
+          acc.push(node);
         }
-        repo.images.push(image);
+        node.repositories.push(repository);
         return acc;
       }
-      acc.push(image);
+      acc.push(repository);
       return acc;
     }, []);
 };

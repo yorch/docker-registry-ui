@@ -33,7 +33,7 @@ RUN npm run build
 FROM nginx:latest
 
 LABEL maintainer="Jorge Barnaby (yorch)"
-LABEL org.opencontainers.image.title="Docker Registry UI"
+LABEL org.opencontainers.image.title="Registry Explorer"
 LABEL org.opencontainers.image.description="A web UI for private docker registry"
 LABEL org.opencontainers.image.source="https://github.com/yorch/docker-registry-ui"
 LABEL org.opencontainers.image.licenses="AGPL-3.0"
