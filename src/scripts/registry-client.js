@@ -45,6 +45,29 @@ export const newestDate = (values) =>
     .filter((value) => !Number.isNaN(new Date(value).getTime()))
     .sort((left, right) => new Date(right) - new Date(left))[0];
 
+/*
+ * Http.getErrorMessage() returns either a prose string or a `{ code, url }`
+ * object that the error page knows how to render. Callers here reject with an
+ * Error and display `error.message`, so the object form used to surface as
+ * "[object Object]" -- precisely in the mixed-content and bad-URL cases where
+ * the message is the only thing telling the user what to change. The code and
+ * url are kept on the Error for anything that wants to render them properly.
+ */
+const CODE_MESSAGES = {
+  MIXED_CONTENT:
+    'This page is served over HTTPS but the registry URL is HTTP, so the browser blocked the request. Serve the registry over HTTPS.',
+  INCORRECT_URL: 'The registry URL is not a valid absolute http(s) URL.',
+};
+
+export const toRegistryError = (reason) => {
+  if (reason instanceof Error) return reason;
+  if (typeof reason === 'string') return new Error(reason);
+  const error = new Error(CODE_MESSAGES[reason?.code] || `The registry request failed (${reason?.code || 'unknown'}).`);
+  error.code = reason?.code;
+  error.url = reason?.url;
+  return error;
+};
+
 const digestResponse = async (text) => {
   if (!globalThis.crypto?.subtle || !globalThis.TextEncoder) return undefined;
   const buffer = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -60,21 +83,25 @@ export class RegistryClient {
 
   request(url, { method = 'GET', accept, noCache = false } = {}) {
     return new Promise((resolve, reject) => {
-      requestPool.submit((done) => {
+      let settled = false;
+      // Only set once the task actually starts. A task dropped from the queue
+      // never ran, so it never took a slot and must not release one.
+      let release = () => {};
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        release();
+        callback(value);
+      };
+      const task = (done) => {
+        release = done;
         const request = new Http({
           onAuthentication: this.onAuthentication,
           withCredentials: this.isRegistrySecured,
           noCache,
         });
-        let settled = false;
-        const finish = (callback, value) => {
-          if (settled) return;
-          settled = true;
-          done();
-          callback(value);
-        };
         request.addEventListener('error', function () {
-          finish(reject, this.getErrorMessage());
+          finish(reject, toRegistryError(this.getErrorMessage()));
         });
         request.addEventListener('loadend', function () {
           const response = {
@@ -104,6 +131,11 @@ export class RegistryClient {
         request.open(method, url);
         if (accept) request.setRequestHeader('Accept', accept);
         request.send();
+      };
+      requestPool.submit(task, () => {
+        const error = new Error(`The request for ${url} was cancelled before it started.`);
+        error.cancelled = true;
+        finish(reject, error);
       });
     });
   }

@@ -1,4 +1,17 @@
-const byNewest = (left, right) => new Date(right.created || 0) - new Date(left.created || 0);
+/*
+ * An unparseable `created` used to make byNewest return NaN, which is not a
+ * consistent comparator: sort() is then free to leave the whole repository in
+ * arbitrary order, so "keep the newest N" could retain the wrong N. The record
+ * carrying the bad date is blocked from deletion by its own check either way --
+ * the damage was to its neighbours. A finite sentinel sorts it last and keeps
+ * the ordering total (subtracting two sentinels gives 0, not NaN).
+ */
+const timeOf = (record) => {
+  const time = new Date(record.created ?? 0).getTime();
+  return Number.isNaN(time) ? Number.MIN_SAFE_INTEGER : time;
+};
+
+const byNewest = (left, right) => timeOf(right) - timeOf(left);
 
 const compilePatterns = (patterns) =>
   (patterns || [])
@@ -9,7 +22,14 @@ const compilePatterns = (patterns) =>
       return new RegExp(`^${escaped}$`);
     });
 
-export const summarizeRegistry = (records, repositoryNames = []) => {
+/*
+ * `unreadableRepositories` are the ones whose tag list could not be fetched at
+ * all. They produce no records, so counting them as tagless would report a
+ * repository that may be full of tags as empty -- and contradict the "N could
+ * not be inspected" warning shown beside the figure.
+ */
+export const summarizeRegistry = (records, repositoryNames = [], unreadableRepositories = []) => {
+  const unreadable = new Set(unreadableRepositories);
   const layers = new Map();
   const manifests = new Set();
   const repositories = new Map(repositoryNames.map((name) => [name, { name, tags: 0, size: 0 }]));
@@ -26,7 +46,8 @@ export const summarizeRegistry = (records, repositoryNames = []) => {
   return {
     repositories: repositories.size,
     tags: records.length,
-    tagless: [...repositories.values()].filter((repository) => repository.tags === 0).length,
+    tagless: [...repositories.values()].filter((r) => r.tags === 0 && !unreadable.has(r.name)).length,
+    unreadable: unreadable.size,
     manifests: manifests.size,
     uniqueLayerSize: [...layers.values()].reduce((total, size) => total + size, 0),
     logicalSize: records.reduce((total, record) => total + (Number(record.size) || 0), 0),

@@ -17,6 +17,13 @@
     </button>
 
     <div if="{ state.expanded }" class="operations-body">
+      <div if="{ state.deleteFailures?.length }" class="delete-failures" role="alert">
+        <strong>{ state.deleteFailures.length } manifests were not deleted</strong>
+        <ul>
+          <li each="{ failure in state.deleteFailures }">{ failure }</li>
+        </ul>
+      </div>
+
       <div if="{ !state.scanning && !state.summary }" class="operations-intro">
         <div>
           <h3>Build a live registry inventory</h3>
@@ -58,14 +65,15 @@
           <div><dt>Repositories</dt><dd>{ state.summary.repositories }</dd></div>
           <div><dt>Tags</dt><dd>{ state.summary.tags }</dd></div>
           <div><dt>Unique manifests</dt><dd>{ state.summary.manifests }</dd></div>
-          <div><dt>Tagless</dt><dd>{ state.summary.tagless }</dd></div>
+          <div><dt>Tagless</dt><dd title="Repositories the registry reports as having no tags.">{ state.summary.tagless }</dd></div>
+          <div><dt>Unreadable</dt><dd title="Repositories whose tag list could not be fetched. Not counted as tagless, and excluded from cleanup.">{ state.summary.unreadable }</dd></div>
           <div><dt>Unique layer bytes</dt><dd>{ bytesToSize(state.summary.uniqueLayerSize) }</dd></div>
           <div><dt>Logical tag size</dt><dd>{ bytesToSize(state.summary.logicalSize) }</dd></div>
         </dl>
 
         <p if="{ state.scanErrors.length }" class="scan-warning" role="status">
           <i class="material-icons" aria-hidden="true">warning</i>
-          { state.scanErrors.length } tags could not be inspected and are excluded from cleanup.
+          { state.scanErrors.length } repositories or tags could not be inspected and are excluded from cleanup.
         </p>
 
         <div if="{ state.summary.largestRepositories.length }" class="largest-list">
@@ -222,6 +230,7 @@
           plan: undefined,
           records: [],
           scanErrors: [],
+          deleteFailures: [],
           repositoryNames: [],
           processedTags: 0,
           totalTags: 0,
@@ -288,10 +297,14 @@
             }
           }
           if (generation !== this.generation) return;
+          // A scan error without a tag is a repository whose tag list could not
+          // be read at all. It contributes no records, so the summary has to be
+          // told, or it reports the repository as tagless.
+          const unreadable = scanErrors.filter((failure) => !failure.tag).map((failure) => failure.repository);
           this.update({
             scanning: false,
             records,
-            summary: summarizeRegistry(records, repositoryNames),
+            summary: summarizeRegistry(records, repositoryNames, unreadable),
             completedAt: new Date(),
           });
         } catch (error) {
@@ -372,7 +385,7 @@
       async executeDelete() {
         const candidates = this.selectedCandidates();
         if (!candidates.length || !this.props.isImageRemoveActivated) return;
-        this.update({ deleting: true });
+        this.update({ deleting: true, deleteFailures: [] });
         const client = this.client();
         const failures = [];
         // One alias snapshot per repository rather than per candidate: the old
@@ -394,14 +407,27 @@
             failures.push(`${candidate.repository}: ${error.message || error}`);
           }
         }
+        const deleted = candidates.length - failures.length;
         invalidateRegistry(this.props.registryUrl);
-        this.update({ deleting: false, confirming: false, plan: undefined, summary: undefined });
+        // A run that deleted nothing left the registry exactly as the inventory
+        // describes it, so the plan and summary are still accurate. Clearing
+        // them unconditionally forced a full re-scan before the user could
+        // retry, which on a large registry is minutes of work thrown away.
+        this.update({
+          deleting: false,
+          confirming: false,
+          deleteFailures: failures,
+          ...(deleted > 0 ? { plan: undefined, summary: undefined } : {}),
+        });
         if (failures.length) {
-          this.props.onNotify(`${candidates.length - failures.length} manifests deleted; ${failures.length} failed.`, true);
+          // The reasons are the actionable part -- "expose Docker-Content-Digest",
+          // "tags changed since the preview" -- so lead with one and render the
+          // rest above. A bare count tells the user nothing they can act on.
+          this.props.onNotify(`${deleted} of ${candidates.length} manifests deleted. ${failures[0]}`, true);
         } else {
           this.props.onNotify(`${candidates.length} manifests deleted. Run registry garbage collection server-side to reclaim blobs.`);
         }
-        this.props.onRegistryChanged?.();
+        if (deleted > 0) this.props.onRegistryChanged?.();
       },
       /*
        * Refuses the delete unless the tags now resolving to this digest are
@@ -528,7 +554,9 @@
 
     :host .metric-grid {
       display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
+      /* auto-fit rather than a fixed count so adding a metric reflows instead
+         of leaving one stranded on a second row. */
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: var(--space-3);
       margin: var(--space-4) 0;
     }
@@ -562,6 +590,21 @@
       border-radius: var(--radius-md);
       background: var(--surface-muted);
       color: var(--text-secondary);
+    }
+
+    :host .delete-failures {
+      margin-bottom: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--danger);
+      border-radius: var(--radius-md);
+      background: var(--danger-soft);
+      color: var(--text-secondary);
+    }
+
+    :host .delete-failures ul {
+      max-height: 200px;
+      margin: var(--space-2) 0 0;
+      overflow: auto;
     }
 
     :host .scan-warning {

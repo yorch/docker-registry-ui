@@ -21,8 +21,14 @@ export class RequestPool {
     this.pumping = false;
   }
 
-  submit(task) {
-    this.queue.push(task);
+  // `onDrop` is how a caller learns its task will never run. A callback-style
+  // caller can ignore it, but anything that turned submit() into a promise must
+  // pass one: a dropped task never starts, so it never reaches the `loadend`
+  // that would settle it, and the promise would stay pending for the life of
+  // the page. That is what left the retention delete dialog stuck on
+  // "Deleting…" when the catalog refreshed mid-delete.
+  submit(task, onDrop) {
+    this.queue.push({ task, onDrop });
     this.pump();
   }
 
@@ -31,7 +37,15 @@ export class RequestPool {
   // already on the wire is left to finish; its result gets discarded by the
   // caller's own guards.
   drop() {
+    const dropped = this.queue;
     this.queue = [];
+    dropped.forEach(({ onDrop }) => {
+      try {
+        onDrop?.();
+      } catch (_e) {
+        // One caller's cleanup must not stop the rest from being notified.
+      }
+    });
   }
 
   // A cache hit replays synchronously, so `done` can run inside `task(done)`
@@ -45,7 +59,7 @@ export class RequestPool {
     this.pumping = true;
     try {
       while (this.active < this.limit && this.queue.length > 0) {
-        const task = this.queue.shift();
+        const { task } = this.queue.shift();
         this.active++;
         let settled = false;
         const done = () => {

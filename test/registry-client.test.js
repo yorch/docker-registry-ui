@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import { createMockRegistry } from '../dev/mock-registry/server.js';
-import { newestDate, parseNextLink, RegistryClient } from '../src/scripts/registry-client.js';
+import { newestDate, parseNextLink, RegistryClient, toRegistryError } from '../src/scripts/registry-client.js';
+import { MAX_CONCURRENT_REQUESTS, requestPool } from '../src/scripts/request-pool.js';
 
 describe('registry client', () => {
   let registry;
@@ -65,6 +66,45 @@ describe('registry client', () => {
     const replayed = await client.catalogPage({ pageSize: 2, visited });
     assert.deepEqual(replayed.repositories, first.repositories);
     assert.equal(replayed.next, undefined);
+  });
+
+  it('should reject a request the pool drops instead of pending forever', async () => {
+    const client = new RegistryClient({ registryUrl: registry.url, onAuthentication: () => {} });
+    // Fill every slot so the next request is still queued when the drop lands.
+    // Nothing awaits these: they are only here to occupy the pool.
+    const inFlight = Array.from({ length: MAX_CONCURRENT_REQUESTS }, () => client.tags('nginx').catch(() => {}));
+    const queued = client.tags('oci-index');
+
+    // What catalog.display() does on Refresh and on a registry switch.
+    requestPool.drop();
+
+    await assert.rejects(
+      () => queued,
+      (error) => error.cancelled === true && /cancelled before it started/.test(error.message),
+      'a dropped request must settle; leaving it pending is what hung the delete dialog',
+    );
+    await Promise.all(inFlight);
+  });
+
+  describe('toRegistryError', () => {
+    it('should turn the coded object form into a readable message', () => {
+      const error = toRegistryError({ code: 'MIXED_CONTENT', url: 'http://registry.example' });
+      // The object form used to reach the UI as "[object Object]".
+      assert.match(error.message, /HTTPS/);
+      assert.equal(error.code, 'MIXED_CONTENT');
+      assert.equal(error.url, 'http://registry.example');
+    });
+
+    it('should pass strings and Errors through unchanged', () => {
+      assert.equal(toRegistryError('plain trouble').message, 'plain trouble');
+      const original = new Error('already an error');
+      assert.equal(toRegistryError(original), original);
+    });
+
+    it('should still say something useful for an unrecognised code', () => {
+      assert.match(toRegistryError({ code: 'WAT' }).message, /WAT/);
+      assert.doesNotMatch(toRegistryError({}).message, /\[object Object\]/);
+    });
   });
 
   describe('newestDate', () => {

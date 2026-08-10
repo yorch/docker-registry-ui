@@ -23,6 +23,36 @@ describe('registry analysis', () => {
     assert.equal(summary.uniqueLayerSize, 125);
   });
 
+  it('should not count a repository it could not read as tagless', () => {
+    const summary = summarizeRegistry([record('v1', '2025-01-01')], ['team/app', 'empty', 'forbidden'], ['forbidden']);
+    // `forbidden` produces no records because its tag list 401d, which is not
+    // the same as the registry saying it has no tags.
+    assert.equal(summary.tagless, 1, 'only the genuinely empty repository is tagless');
+    assert.equal(summary.unreadable, 1);
+    assert.equal(summary.repositories, 3);
+  });
+
+  it('should keep "keep newest N" correct when a neighbour has an unparseable date', () => {
+    // The bad date used to make the comparator return NaN, leaving the whole
+    // repository in arbitrary order so the wrong tags survived.
+    const records = [
+      record('broken', 'not a date'),
+      record('oldest', '2024-01-01'),
+      record('newest', '2026-01-01'),
+      record('middle', '2025-01-01'),
+    ];
+    const plan = planRetention(
+      records,
+      { olderThanDays: 1, keepNewest: 1, protectedPatterns: [] },
+      new Date('2026-08-09'),
+    );
+    const kept = plan.skipped.filter((s) => /Kept among newest/.test(s.reason)).flatMap((s) => s.tags);
+    assert.deepEqual(kept, ['newest'], 'the genuinely newest tag is the one retained');
+    // The undated record is still refused on its own merits.
+    assert.ok(plan.skipped.some((s) => /Creation date unavailable/.test(s.reason)));
+    assert.ok(!plan.candidates.some((c) => c.tags.includes('broken')));
+  });
+
   it('should protect patterns, newest tags and recent tags', () => {
     const records = [
       record('latest', '2024-01-01'),
