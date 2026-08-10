@@ -27,6 +27,12 @@ describe('tag list in a browser', function () {
   let page;
 
   before(async () => {
+    // A page size of two so the catalogue actually paginates against the mock
+    // registry, which holds far fewer repositories than any realistic limit.
+    // This applies to the whole suite on purpose: startDevServer binds port 8000
+    // and refuses to run alongside another instance, so isolating the pagination
+    // test would cost a second full rollup build. Every other test here reaches
+    // its tag list by route and never reads the catalogue.
     server = await startDevServer({ CATALOG_ELEMENTS_LIMIT: '2' });
     browser = await chromium.launch();
   });

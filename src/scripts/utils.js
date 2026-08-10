@@ -162,17 +162,6 @@ export function stripHttps(url) {
   return url.replace(/^https?:\/\//, '');
 }
 
-function kebabToCamelCase(s) {
-  return s.replace(/-[a-z]/, (x) => x[1].toUpperCase());
-}
-
-export function eventTransfer(from, to) {
-  from.on('*', function (event, param) {
-    to[kebabToCamelCase(event)] = param;
-    to.trigger(event, param);
-  });
-}
-
 export function isDigit(char) {
   return char >= '0' && char <= '9';
 }

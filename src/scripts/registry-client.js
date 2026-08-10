@@ -29,6 +29,21 @@ export const parseNextLink = (header, baseUrl) => {
 
 const sumLayers = (layers = []) => layers.reduce((total, layer) => total + (Number(layer.size) || 0), 0);
 
+/*
+ * The newest of a set of timestamps, compared as dates rather than as strings:
+ * ISO 8601 only sorts lexicographically when every value shares one precision
+ * and offset, which manifests written by different builders do not.
+ *
+ * Newest rather than oldest is a safety choice. An index's date feeds the
+ * retention cutoff, and taking the oldest platform would make a recently
+ * re-pushed multi-platform tag read as stale and become a deletion candidate.
+ */
+export const newestDate = (values) =>
+  values
+    .filter(Boolean)
+    .filter((value) => !Number.isNaN(new Date(value).getTime()))
+    .sort((left, right) => new Date(right) - new Date(left))[0];
+
 const digestResponse = async (text) => {
   if (!globalThis.crypto?.subtle || !globalThis.TextEncoder) return undefined;
   const buffer = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -92,21 +107,31 @@ export class RegistryClient {
     });
   }
 
-  async catalogPage({ url, pageSize = 100 } = {}) {
+  /*
+   * `visited` is the loop guard for catalogue continuation. The `Link` header is
+   * supplied by the registry, and a proxy that rewrites it -- or a registry that
+   * ignores `last=` -- can advertise a next page that points back at one already
+   * read. Without this the paging loops below never terminate. Pass the same Set
+   * through every page of one traversal; omit it for a single page.
+   */
+  async catalogPage({ url, pageSize = 100, visited } = {}) {
     const pageUrl = url || `${this.registryUrl}/v2/_catalog?n=${pageSize}`;
+    visited?.add(pageUrl);
     const response = await this.request(pageUrl);
+    const next = parseNextLink(response.header('Link'), pageUrl);
     return {
       repositories: response.json?.repositories || [],
-      next: parseNextLink(response.header('Link'), pageUrl),
+      next: next && visited?.has(next) ? undefined : next,
     };
   }
 
   async allRepositories({ pageSize = 100, onProgress, isCancelled = () => false } = {}) {
     const repositories = new Set();
+    const visited = new Set();
     let next;
     do {
       if (isCancelled()) break;
-      const page = await this.catalogPage({ url: next, pageSize });
+      const page = await this.catalogPage({ url: next, pageSize, visited });
       page.repositories.forEach((name) => repositories.add(name));
       next = page.next;
       onProgress?.({ repositories: [...repositories].sort(), hasMore: Boolean(next) });
@@ -191,15 +216,46 @@ export class RegistryClient {
       repository,
       tag,
       digest: root.digest,
-      created: platforms
-        .map((platform) => platform.created)
-        .filter(Boolean)
-        .sort()[0],
+      created: newestDate(platforms.map((platform) => platform.created)),
       size: sumLayers([...uniqueLayers.values()]),
       layers: [...uniqueLayers.values()],
       platforms,
       isIndex: true,
     };
+  }
+
+  /*
+   * The tags currently resolving to each manifest digest in a repository, read
+   * past the cache.
+   *
+   * This is the guard between a retention preview and an irreversible delete:
+   * `DELETE /manifests/<digest>` removes *every* tag resolving to that digest,
+   * so a tag pushed since the preview would be destroyed without ever having
+   * been shown. A tag whose manifest cannot be read, or whose digest neither the
+   * registry nor the browser can establish, makes the whole repository
+   * unverifiable -- refuse rather than delete on incomplete evidence.
+   *
+   * One snapshot per repository is both cheaper and more consistent than
+   * re-reading between deletes: deleting one digest cannot change which tags
+   * resolve to a different one.
+   */
+  async currentAliases(repository) {
+    const tags = await this.tags(repository, { noCache: true });
+    const settled = await Promise.allSettled(tags.map((tag) => this.manifest(repository, tag, { noCache: true })));
+    const aliases = new Map();
+    settled.forEach((result, index) => {
+      if (result.status !== 'fulfilled') {
+        throw new Error(`Could not re-read ${repository}:${tags[index]} to verify the preview; nothing was deleted`);
+      }
+      if (!result.value.digest) {
+        throw new Error(
+          `Could not establish a content digest for ${repository}:${tags[index]}; nothing was deleted. ` +
+            'Expose the Docker-Content-Digest header, or serve the UI over HTTPS so it can hash the manifest itself.',
+        );
+      }
+      aliases.set(result.value.digest, [...(aliases.get(result.value.digest) || []), tags[index]]);
+    });
+    return aliases;
   }
 
   deleteManifest(repository, digest) {

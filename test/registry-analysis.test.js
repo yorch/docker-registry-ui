@@ -60,4 +60,16 @@ describe('registry analysis', () => {
     assert.equal(plan.candidates.length, 0);
     assert.equal(plan.skipped.length, 2);
   });
+
+  it('should report the newest alias date by date order, not string order', () => {
+    // The second value is the later instant, but sorts first as a string
+    // because its offset carries it past midnight UTC.
+    const plan = planRetention(
+      [record('a', '2024-03-01T00:00:00Z', 'sha256:same'), record('b', '2024-02-29T20:00:00-05:00', 'sha256:same')],
+      { olderThanDays: 30, keepNewest: 0, protectedPatterns: [] },
+      new Date('2026-08-09'),
+    );
+    assert.equal(plan.candidates.length, 1);
+    assert.equal(plan.candidates[0].created, '2024-02-29T20:00:00-05:00');
+  });
 });

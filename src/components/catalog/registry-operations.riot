@@ -239,16 +239,28 @@
             },
           });
           if (generation !== this.generation) return;
+          // Batched like the inspection pass below: listing tags one repository
+          // at a time serialised a round trip per repository ahead of any
+          // inspection, which on a few thousand repositories is the whole scan.
           const inventories = [];
-          for (const repository of repositoryNames) {
+          let totalTags = 0;
+          for (let offset = 0; offset < repositoryNames.length; offset += BATCH_SIZE) {
             if (generation !== this.generation) return;
-            try {
-              const tags = await client.tags(repository);
-              inventories.push({ repository, tags });
-              this.update({ totalTags: this.state.totalTags + tags.length });
-            } catch (error) {
-              scanErrors.push({ repository, error: error.message || String(error) });
-            }
+            const batch = repositoryNames.slice(offset, offset + BATCH_SIZE);
+            const settled = await Promise.allSettled(batch.map((repository) => client.tags(repository)));
+            if (generation !== this.generation) return;
+            settled.forEach((result, index) => {
+              if (result.status === 'fulfilled') {
+                inventories.push({ repository: batch[index], tags: result.value });
+                totalTags += result.value.length;
+              } else {
+                scanErrors.push({
+                  repository: batch[index],
+                  error: result.reason?.message || String(result.reason),
+                });
+              }
+            });
+            this.update({ totalTags, scanErrors: [...scanErrors] });
           }
           for (const inventory of inventories) {
             for (let offset = 0; offset < inventory.tags.length; offset += BATCH_SIZE) {
@@ -257,6 +269,7 @@
               const settled = await Promise.allSettled(
                 tags.map((tag) => client.inspectTag(inventory.repository, tag)),
               );
+              if (generation !== this.generation) return;
               settled.forEach((result, index) => {
                 if (result.status === 'fulfilled') records.push(result.value);
                 else scanErrors.push({
@@ -265,8 +278,10 @@
                   error: result.reason?.message || String(result.reason),
                 });
               });
+              // `records` is deliberately not published here: nothing renders it
+              // until the scan completes, and copying a growing array once per
+              // batch is quadratic in the tag count.
               this.update({
-                records: [...records],
                 scanErrors: [...scanErrors],
                 processedTags: this.state.processedTags + tags.length,
               });
@@ -275,6 +290,7 @@
           if (generation !== this.generation) return;
           this.update({
             scanning: false,
+            records,
             summary: summarizeRegistry(records, repositoryNames),
             completedAt: new Date(),
           });
@@ -308,10 +324,14 @@
             .filter(Boolean),
         };
         const plan = planRetention(this.state.records, policy);
+        // A preview opens with nothing selected. Pre-checking every candidate
+        // would put a one-click path to bulk deletion behind a screen whose
+        // purpose is to be read first; Select All is one click away for anyone
+        // who has read it.
         this.update({
           policy: { ...policy, protectedPatterns: policy.protectedPatterns.join(', ') },
           plan,
-          selected: new Set(plan.candidates.map(this.candidateKey)),
+          selected: new Set(),
         });
       },
       candidateKey(candidate) {
@@ -355,9 +375,20 @@
         this.update({ deleting: true });
         const client = this.client();
         const failures = [];
+        // One alias snapshot per repository rather than per candidate: the old
+        // shape re-listed every tag and re-read every manifest for each
+        // candidate, so deleting n candidates from a repository of m tags cost
+        // n * (m + 1) uncached requests through a six-slot pool.
+        const aliasesByRepository = new Map();
         for (const candidate of candidates) {
           try {
-            await this.revalidateCandidate(client, candidate);
+            if (!aliasesByRepository.has(candidate.repository)) {
+              aliasesByRepository.set(candidate.repository, client.currentAliases(candidate.repository));
+            }
+            // The promise is cached, not the value, so a repository that cannot
+            // be verified fails every one of its candidates with the same error
+            // instead of retrying the same doomed reads for each.
+            this.assertPreviewStillHolds(await aliasesByRepository.get(candidate.repository), candidate);
             await client.deleteManifest(candidate.repository, candidate.digest);
           } catch (error) {
             failures.push(`${candidate.repository}: ${error.message || error}`);
@@ -372,19 +403,17 @@
         }
         this.props.onRegistryChanged?.();
       },
-      async revalidateCandidate(client, candidate) {
-        const tags = await client.tags(candidate.repository, { noCache: true });
-        const settled = await Promise.allSettled(
-          tags.map((tag) => client.manifest(candidate.repository, tag, { noCache: true })),
-        );
-        if (settled.some((result) => result.status === 'rejected')) {
-          throw new Error('Could not revalidate every current tag; nothing was deleted');
-        }
-        const aliases = tags
-          .filter((_, index) => settled[index].value.digest === candidate.digest)
-          .sort();
-        const previewAliases = [...candidate.tags].sort();
-        if (aliases.length !== previewAliases.length || aliases.some((tag, index) => tag !== previewAliases[index])) {
+      /*
+       * Refuses the delete unless the tags now resolving to this digest are
+       * exactly the ones the preview showed. Deleting a manifest removes every
+       * tag pointing at it, so a tag pushed since the preview would be destroyed
+       * without ever appearing on screen. A digest that has vanished entirely
+       * also lands here, with an empty current set.
+       */
+      assertPreviewStillHolds(aliases, candidate) {
+        const current = [...(aliases.get(candidate.digest) || [])].sort();
+        const preview = [...candidate.tags].sort();
+        if (current.length !== preview.length || current.some((tag, index) => tag !== preview[index])) {
           throw new Error('Tags changed since the preview; re-analyze before deleting');
         }
       },

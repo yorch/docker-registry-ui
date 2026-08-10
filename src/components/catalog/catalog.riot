@@ -293,7 +293,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           const knownNames = new Set(names);
           const added = [];
           do {
-            const page = await client.catalogPage({ url: next });
+            const page = await client.catalogPage({ url: next, visited: this.visitedCatalogUrls });
             if (generation !== this.requestGeneration) return;
             page.repositories.forEach((name) => {
               if (!knownNames.has(name)) {
@@ -315,7 +315,10 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         } catch (error) {
           if (generation === this.requestGeneration) this.props.onNotify(error.message || error, true);
         } finally {
-          if (generation === this.requestGeneration) this.update({ loadingMore: false });
+          // Unconditional: a registry switch mid-page bumps the generation, and
+          // gating this on it left the flag stuck true, disabling Load More /
+          // Load All for the rest of the session on the registry switched to.
+          this.update({ loadingMore: false });
         }
       },
       refresh() {
@@ -350,6 +353,10 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         let nImages = 0;
         const self = this;
         const catalogUrl = `${props.registryUrl}/v2/_catalog?n=${state.catalogElementsLimit}`;
+        // Loop guard for the continuation links followed by loadNextPage. Seeded
+        // with the first page so a registry that advertises a next page pointing
+        // back at it stops here rather than paging forever.
+        this.visitedCatalogUrls = new Set([catalogUrl]);
         const oReq = new Http({
           onAuthentication: this.props.onAuthentication,
           withCredentials: props.isRegistrySecured,

@@ -89,10 +89,12 @@ export const planRetention = (
         repository,
         digest,
         tags: aliases.map((record) => record.tag),
-        created: aliases
-          .map((record) => record.created)
-          .sort()
-          .at(-1),
+        // `aliases` is filled while walking `sorted`, so it keeps that
+        // newest-first order and the head is this digest's newest alias.
+        // Re-sorting the strings here would compare ISO 8601 lexicographically,
+        // which only matches date order when every value shares one precision
+        // and offset.
+        created: aliases[0].created,
         size: Math.max(...aliases.map((record) => Number(record.size) || 0)),
       });
     });
