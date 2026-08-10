@@ -1,5 +1,14 @@
 const LOCAL_STORAGE_KEY = 'registryServer';
 
+export const DEFAULT_APP_NAME = 'Registry Explorer';
+
+/*
+ * Unset arrives as an empty string rather than undefined: the container
+ * entrypoint substitutes every `${VAR}` placeholder in index.html whether the
+ * variable is set or not, so "" is the ordinary case rather than an edge one.
+ */
+export const resolveAppName = (appName) => (appName || '').trim() || DEFAULT_APP_NAME;
+
 // A value that has not arrived yet reads differently from one that could not be
 // fetched. `undefined` is still in flight, `null` failed -- the same rule the
 // catalog tag-count badge follows.
