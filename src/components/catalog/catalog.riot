@@ -303,15 +303,24 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
               }
             });
             next = page.next;
+            // nImages counts repositories; nRepositories counts what the tree
+            // actually shows, which is the branched top level. Reporting the
+            // flat length for both made the two badges always agree and broke
+            // the single-branch auto-expand below.
+            const displayed = this.displayRepositories(names);
             this.update({
               repositoryNames: names,
-              repositories: this.displayRepositories(names),
+              repositories: displayed,
               nImages: names.length,
-              nRepositories: names.length,
+              nRepositories: displayed.length,
               nextCatalogUrl: next,
             });
+            // Counts are fetched per page rather than after the whole run: a
+            // later page failing used to leave every repository already merged
+            // into the tree stuck on the pending badge forever, and hidden
+            // outright when "show tagless" was off.
+            this.fetchCounts(added.splice(0), this.props);
           } while (loadAll && next);
-          this.fetchCounts(added, this.props);
         } catch (error) {
           if (generation === this.requestGeneration) this.props.onNotify(error.message || error, true);
         } finally {
@@ -394,7 +403,8 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           self.update({
             repositories,
             repositoryNames,
-            nRepositories: repositoryNames.length,
+            // The branched top-level count, not the flat one -- see loadNextPage.
+            nRepositories: repositories.length,
             nImages,
             nextCatalogUrl,
             counts: {},

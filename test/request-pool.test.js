@@ -106,6 +106,41 @@ describe('request-pool', () => {
       assert.equal(pool.active, 1);
     });
 
+    it('should tell a dropped task it will never run', () => {
+      const pool = new RequestPool(1);
+      const dropped = [];
+      // Occupies the only slot, so the next two sit in the queue.
+      pool.submit(() => {});
+      pool.submit(
+        () => assert.fail('a queued task must not run once dropped'),
+        () => dropped.push('second'),
+      );
+      pool.submit(
+        () => assert.fail('a queued task must not run once dropped'),
+        () => dropped.push('third'),
+      );
+      pool.drop();
+      assert.deepEqual(dropped, ['second', 'third']);
+    });
+
+    it('should notify every dropped task even when one of them throws', () => {
+      const pool = new RequestPool(1);
+      const dropped = [];
+      pool.submit(() => {});
+      pool.submit(
+        () => {},
+        () => {
+          throw new Error('cleanup blew up');
+        },
+      );
+      pool.submit(
+        () => {},
+        () => dropped.push('after the throw'),
+      );
+      pool.drop();
+      assert.deepEqual(dropped, ['after the throw']);
+    });
+
     it('should accept new work after a drop', () => {
       const pool = new RequestPool(1);
       const log = [];
