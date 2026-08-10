@@ -22,11 +22,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           Tags
           <span class="panel-subtitle">of { props.image }</span>
         </h2>
-        <!--
-          The host, not REGISTRY_TITLE. This reads as a pullable reference, and
-          joining a display title onto a repository path produced things like
-          "Sourced from Docker Registry UI/nginx", which refers to nothing.
-        -->
+        <!-- The host, not REGISTRY_TITLE: this has to read as a pullable reference. -->
         <p class="source-hint">Sourced from { stripHttps(props.registryUrl) + '/' + props.image }</p>
       </div>
       <div class="tag-actions">

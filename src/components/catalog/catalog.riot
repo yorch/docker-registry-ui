@@ -18,11 +18,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   <div class="panel catalog-header" aria-busy="{ !state.loadend || state.refreshing ? 'true' : 'false' }">
     <div class="panel-header">
       <div class="catalog-title">
-        <!--
-          No "of <registry>" here any more. The topbar names the registry, and
-          repeating it read badly whenever REGISTRY_TITLE was anything but a
-          hostname -- "Repositories of Docker Registry UI".
-        -->
         <h2 class="panel-title">Repositories</h2>
         <label class="tagless-toggle" if="{ props.showCatalogNbTags }">
           <app-checkbox
