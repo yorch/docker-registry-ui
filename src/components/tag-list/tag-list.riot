@@ -22,7 +22,12 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           Tags
           <span class="panel-subtitle">of { props.image }</span>
         </h2>
-        <p class="source-hint">Sourced from { state.registryName + '/' + props.image }</p>
+        <!--
+          The host, not REGISTRY_TITLE. This reads as a pullable reference, and
+          joining a display title onto a repository path produced things like
+          "Sourced from Docker Registry UI/nginx", which refers to nothing.
+        -->
+        <p class="source-hint">Sourced from { stripHttps(props.registryUrl) + '/' + props.image }</p>
       </div>
       <div class="tag-actions">
         <span if="{ state.loadend }" class="badge badge--accent">
@@ -89,7 +94,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   <script>
     import { Http } from '../../scripts/http';
     import { DockerImage } from '../../scripts/docker-image';
-    import { getNumPages, getPageLabels } from '../../scripts/utils';
+    import { getNumPages, getPageLabels, stripHttps } from '../../scripts/utils';
     import { matchSearch } from '../search-bar.riot';
     import Pagination from './pagination.riot';
     import TagTable from './tag-table.riot';
@@ -106,7 +111,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       skeletonRows: [0, 1, 2, 3, 4, 5, 6, 7],
       onBeforeMount(props) {
         this.state = {
-          registryName: props.registryName,
           tags: [],
           loadend: false,
           asc: true,
@@ -268,6 +272,8 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       },
       getPageLabels,
       getNumPages,
+      // Template expressions resolve against the component, not module scope.
+      stripHttps,
       router,
     };
   </script>

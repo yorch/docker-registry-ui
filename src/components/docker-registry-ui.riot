@@ -28,10 +28,20 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         <registry-menu
           if="{ props.singleRegistry !== 'true' }"
           registry-url="{ state.registryUrl }"
+          registry-name="{ state.name }"
           read-only-registries="{ truthy(props.readOnlyRegistries) }"
           on-notify="{ notifySnackbar }"
           on-server-change="{ onServerChange }"
         ></registry-menu>
+        <!--
+          With one fixed registry there is no menu to open, but the registry
+          still has to be identifiable. Same treatment as the trigger, without
+          the affordance of a control that would do nothing.
+        -->
+        <span if="{ props.singleRegistry === 'true' }" class="registry-static" title="{ state.registryUrl }">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span class="registry-static-label">{ state.name }</span>
+        </span>
         <version-notification
           if="{ falsy(props.enableVersionNotification) }"
           version="{ latest }"
@@ -73,7 +83,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           <route path="{baseRoute}">
             <catalog
               registry-url="{ state.registryUrl }"
-              registry-name="{ state.name }"
               catalog-elements-limit="{ state.catalogElementsLimit }"
               on-notify="{ notifySnackbar }"
               on-clear-page-error="{ clearPageError }"
@@ -91,7 +100,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           <route path="{baseRoute}taglist/(.*)">
             <tag-list
               registry-url="{ state.registryUrl }"
-              registry-name="{ state.name }"
               pull-url="{ state.pullUrl }"
               image="{ router.getTagListImage() }"
               show-content-digest="{ truthy(props.showContentDigest) }"
@@ -110,7 +118,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           <route path="{baseRoute}taghistory/(.*)">
             <tag-history
               registry-url="{ state.registryUrl }"
-              registry-name="{ state.name }"
               pull-url="{ state.pullUrl }"
               image="{ router.getTagHistoryImage() }"
               tag="{ router.getTagHistoryTag() }"

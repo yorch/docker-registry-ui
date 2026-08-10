@@ -175,6 +175,25 @@ describe('tag list in a browser', function () {
     assert.match(await page.textContent('catalog .catalog-stats'), /4 repositories/);
   });
 
+  it('should name the registry in the topbar, not in the catalog panel', async () => {
+    await page.goto(server.url, { waitUntil: 'load' });
+    await page.waitForSelector('catalog .catalog-header');
+
+    // REGISTRY_TITLE, which the dev server sets to "Development Registry".
+    // The topbar used to show the bare host and ignore the configured name.
+    assert.match(await page.textContent('.topbar registry-menu .registry-label'), /Development Registry/);
+    assert.equal(
+      await page.getAttribute('.topbar registry-menu .registry-trigger', 'title'),
+      'http://localhost:5555',
+      'the URL stays reachable in the tooltip',
+    );
+
+    // And the panel no longer repeats it as "Repositories of <title>".
+    const heading = await page.textContent('catalog .panel-title');
+    assert.equal(heading.trim(), 'Repositories');
+    assert.doesNotMatch(heading, /\bof\b/);
+  });
+
   it('should count repositories and namespaces as different things', async () => {
     await page.goto(server.url, { waitUntil: 'load' });
     await page.waitForSelector('catalog .catalog-pagination');
