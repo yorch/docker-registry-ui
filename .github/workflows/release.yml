@@ -8,6 +8,14 @@ permissions:
   contents: write
   packages: write
 
+# Per tag, so two releases cut close together never interleave their pushes to
+# the shared moving tags (`:latest`, `:3`, `:3.1`). Never cancelled: a release
+# is the one thing here that must complete once started, and a half-published
+# set of tags is worse than a slow one.
+concurrency:
+  group: publish-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -27,9 +35,11 @@ jobs:
         id: tags
         run: |
           FULL="${GITHUB_REF_NAME}"
-          echo "patch=$(echo "$FULL" | grep -o '^[0-9]*\.[0-9]*\.[0-9]*')" >> "$GITHUB_OUTPUT"
-          echo "minor=$(echo "$FULL" | grep -o '^[0-9]*\.[0-9]*')" >> "$GITHUB_OUTPUT"
-          echo "major=$(echo "$FULL" | grep -o '^[0-9]*')" >> "$GITHUB_OUTPUT"
+          {
+            echo "patch=$(echo "$FULL" | grep -o '^[0-9]*\.[0-9]*\.[0-9]*')"
+            echo "minor=$(echo "$FULL" | grep -o '^[0-9]*\.[0-9]*')"
+            echo "major=$(echo "$FULL" | grep -o '^[0-9]*')"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
@@ -58,8 +68,8 @@ jobs:
             ghcr.io/yorch/docker-registry-ui:${{ steps.tags.outputs.major }}
             ghcr.io/yorch/docker-registry-ui:${{ steps.tags.outputs.minor }}
             ghcr.io/yorch/docker-registry-ui:${{ steps.tags.outputs.patch }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=release-alpine
+          cache-to: type=gha,mode=max,scope=release-alpine
 
       - name: Build and push debian
         uses: docker/build-push-action@v7
@@ -76,5 +86,5 @@ jobs:
             ghcr.io/yorch/docker-registry-ui:${{ steps.tags.outputs.major }}-debian
             ghcr.io/yorch/docker-registry-ui:${{ steps.tags.outputs.minor }}-debian
             ghcr.io/yorch/docker-registry-ui:${{ steps.tags.outputs.patch }}-debian
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=release-debian
+          cache-to: type=gha,mode=max,scope=release-debian
