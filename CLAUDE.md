@@ -65,6 +65,20 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 - `rollup.config.js` reads `version` from `package.json` and writes `dist/version.json`.
   Setting `DEVELOPMENT_BUILD` or running the dev server bumps the minor version and
   appends a suffix.
+- **`version.json` also carries the `commit` the bundle was built from**, which the
+  app footer links to. It comes from `COMMIT_HASH` if set, else `git rev-parse HEAD`,
+  else the empty string. The image builds only ever get the first: `.dockerignore`
+  does not allowlist `.git`, so both Dockerfiles declare `ARG COMMIT_HASH` and all
+  four `build-push-action` steps in `main.yml`/`release.yml` pass `${{ github.sha }}`.
+  Add the build arg to any new image build, or its footer silently loses the hash.
+- **`.version.json` is consumed as a named ESM import**, so every key it can ever
+  have must always be written. A key omitted because its value was undefined is a
+  build-time "missing export" error, not an `undefined` at runtime.
+- **Riot template expressions resolve against the component, not module scope.**
+  A value imported at the top of a `.riot` file is not reachable from `{ … }` in the
+  template until it is also a property on the `export default` object — the compiler
+  emits `e => e.name`, so the identifier silently reads as `undefined` and tree-shaking
+  then drops the import entirely. `version`, `latest` and `commit` are exposed this way.
 
 ## Licensing
 

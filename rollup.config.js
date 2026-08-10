@@ -18,6 +18,7 @@ import mockRegistryPlugin from './rollup/mock-registry-plugin.js';
 import { DEFAULT_MOCK_PORT } from './dev/mock-registry/server.js';
 import { devConfig, applyDevConfig } from './rollup/dev-config.js';
 import fs from 'fs';
+import { execFileSync } from 'child_process';
 const version = JSON.parse(fs.readFileSync('./package.json', 'utf-8')).version;
 
 const useServe = process.env.ROLLUP_SERVE === 'true';
@@ -43,7 +44,37 @@ const getVersion = (version) => {
   return version;
 };
 
-fs.writeFileSync('.version.json', JSON.stringify({ version: getVersion(version), latest: version }));
+/*
+ * The commit the bundle was built from, so a running container can be traced
+ * back to its source.
+ *
+ * COMMIT_HASH comes first because it is the only source the image builds have:
+ * `.dockerignore` does not allowlist `.git`, so git is unavailable inside the
+ * build stage and the workflows pass the SHA as a build argument instead. The
+ * git fallback covers local builds. Neither being available is normal -- a
+ * tarball checkout, say -- and the footer simply omits the hash.
+ *
+ * Always written, even empty: `.version.json` is consumed as a named ESM import
+ * and an absent key is a build-time "missing export" error, not an undefined.
+ */
+const getCommitHash = () => {
+  if (process.env.COMMIT_HASH) {
+    return process.env.COMMIT_HASH.trim();
+  }
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch (_error) {
+    return '';
+  }
+};
+
+fs.writeFileSync(
+  '.version.json',
+  JSON.stringify({ version: getVersion(version), latest: version, commit: getCommitHash() }),
+);
 
 const plugins = [
   riot(),
