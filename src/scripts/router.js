@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { getCurrentRoute } from '@riotjs/route';
-import { encodeURI, decodeURI } from './utils';
+import { decodeURI, encodeURI } from './utils';
 
 function getQueryParams() {
   const queries = {};

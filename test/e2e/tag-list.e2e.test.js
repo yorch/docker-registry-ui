@@ -10,8 +10,8 @@
  * not a second copy of the unit suite.
  */
 
-import { chromium } from 'playwright';
 import assert from 'node:assert';
+import { chromium } from 'playwright';
 import { startDevServer } from './dev-server.js';
 
 const tagsOn = (page) =>

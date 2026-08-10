@@ -1,7 +1,6 @@
-import { newestDate, parseNextLink } from '../src/scripts/registry-client.js';
-import { RegistryClient } from '../src/scripts/registry-client.js';
-import { createMockRegistry } from '../dev/mock-registry/server.js';
 import assert from 'node:assert';
+import { createMockRegistry } from '../dev/mock-registry/server.js';
+import { newestDate, parseNextLink, RegistryClient } from '../src/scripts/registry-client.js';
 
 describe('registry client', () => {
   let registry;

@@ -20,6 +20,17 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 - Components are Riot single-file components (`.riot`) under `src/components/`.
 - **Biome does not format `.riot` files, and neither did Prettier before it.**
   Neither tool can parse Riot SFCs. Format them by hand, matching surrounding style.
+- **Imports are sorted by Biome's `organizeImports` assist action.** It leaves
+  side-effect imports where they are, which `src/index.js` depends on: the SCSS
+  imports are concatenated into the bundle in import order, so `styles/tokens.scss`
+  has to stay ahead of `style.scss`. If you ever change import sorting, rebuild and
+  diff `dist/docker-registry-ui.css` — nothing else would catch a reordered cascade.
+- **`useSortedKeys` is deliberately off.** Alphabetising object literals would rewrite
+  235 sites, 145 of them in `test/fixtures/` and `dev/mock-registry/fixtures.js`.
+  The manifest fixtures are captured registry responses and their key order mirrors
+  what a real registry serves; sorting them would end that. Elsewhere the current key
+  order is usually meaningful — `inspectTag` returns identity, then metadata, then
+  contents, which alphabetical order would shuffle.
 - `.riot` components are unit-testable even though no tool formats them: `test/setup/register.js`
   (loaded via `.mocharc.json`'s `node-option`) registers `test/setup/riot-loader.js`, a Node ESM
   loader hook that compiles `.riot` files with `@riotjs/compiler` on import, plus a jsdom

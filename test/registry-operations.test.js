@@ -4,8 +4,9 @@
  * pure comparison, and it is the one place where being wrong destroys tags that
  * were never shown to anyone.
  */
-import RegistryOperations from '../src/components/catalog/registry-operations.riot';
+
 import assert from 'node:assert';
+import RegistryOperations from '../src/components/catalog/registry-operations.riot';
 
 const { assertPreviewStillHolds } = RegistryOperations.exports;
 

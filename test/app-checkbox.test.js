@@ -1,6 +1,6 @@
+import assert from 'node:assert';
 import { component } from 'riot';
 import AppCheckbox from '../src/components/app-checkbox.riot';
-import assert from 'node:assert';
 
 const mountCheckbox = (props = {}) => {
   const root = document.createElement('div');

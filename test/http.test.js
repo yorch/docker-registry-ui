@@ -1,6 +1,6 @@
-import { Http } from '../src/scripts/http.js';
-import { setCache } from '../src/scripts/cache-request.js';
 import assert from 'node:assert';
+import { setCache } from '../src/scripts/cache-request.js';
+import { Http } from '../src/scripts/http.js';
 
 const REGISTRY = 'https://registry.example.com';
 const TAGS_URL = `${REGISTRY}/v2/nginx/tags/list`;

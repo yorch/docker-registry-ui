@@ -1,6 +1,6 @@
-import { getBranching } from '../src/scripts/repositories.js';
-import { DockerRegistryUIError } from '../src/scripts/error.js';
 import assert from 'node:assert';
+import { DockerRegistryUIError } from '../src/scripts/error.js';
+import { getBranching } from '../src/scripts/repositories.js';
 
 describe('repositories', () => {
   describe('getBranching', () => {
