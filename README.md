@@ -142,7 +142,7 @@ You can run the container with the unprivileged user `nginx`, see the discussion
 Some env options are available for use this interface for **only one server** (when `SINGLE_REGISTRY=true`).
 
 - `REGISTRY_URL`: The default url of your docker registry. You **may need CORS configuration** on your registry. This is usually the domain name or IP of your registry reachable by your computer (e.g `http://registry.example.com`). (default: derived from the hostname of your UI).
-- `REGISTRY_TITLE`: Set a custom title for your user interface. (default: value derived from `REGISTRY_URL`) (see [#28](https://github.com/Joxit/docker-registry-ui/issues/28) and [#32](https://github.com/Joxit/docker-registry-ui/issues/32)). Since 0.3.4
+- `REGISTRY_TITLE`: A human-readable name for **the registry**, shown in the header next to the status dot instead of its hostname. Distinct from `APP_NAME`, which names the application itself. Only applies while the interface stays on the registry it started with: with `SINGLE_REGISTRY=false`, switching to another registry from the menu shows that registry's host, since one fixed title cannot describe whichever registry you picked. (default: value derived from `REGISTRY_URL`) (see [#28](https://github.com/Joxit/docker-registry-ui/issues/28) and [#32](https://github.com/Joxit/docker-registry-ui/issues/32)). Since 0.3.4
 - `PULL_URL`: Set a custom url when you copy the `docker pull` command (see [#71](https://github.com/Joxit/docker-registry-ui/issues/71)). (default: value derived from `REGISTRY_URL`). Since 1.1.0
 - `DELETE_IMAGES`: Set if we can delete images from the UI. (default: `false`)
 - `SHOW_CONTENT_DIGEST`: Show/Hide content digest in docker tag list (see [#126](https://github.com/Joxit/docker-registry-ui/issues/126) and [#131](https://github.com/Joxit/docker-registry-ui/pull/131)). (default: `false`). Since 1.4.9
@@ -168,7 +168,8 @@ Some env options are available for use this interface for **only one server** (w
 - `REGISTRY_SECURED`: By default, the UI will check on every requests if your registry is secured or not (you will see `401` responses in your console). Set to `true` if your registry uses Basic Authentication and divide by two the number of call to your registry. (default `false`). Since 2.5.0
 - `SHOW_TAG_HISTORY`: Whether to show the tag history feature or not. Allows to simplify the user interface by hiding it form the tag list if set to `false`. (default: `true`).
 There are some examples with [docker-compose](https://docs.docker.com/compose/) and docker-registry-ui as proxy [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-proxy/) or docker-registry-ui as standalone [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-standalone/).
-- `DOCKER_REGISTRY_UI_TITLE`: Set a custom title displayed in the header bar. (default: `Registry Explorer`).
+- `APP_NAME`: A custom name for **the application**, shown in the header bar. Distinct from `REGISTRY_TITLE`, which names the registry you are browsing. (default: `Registry Explorer`). Since 3.2.0
+- `DOCKER_REGISTRY_UI_TITLE`: **Deprecated, use `APP_NAME`.** Still honoured so that upgrading does not silently reset a customised header, and ignored when `APP_NAME` is also set. Scheduled for removal in 4.0.0.
 - `ENABLE_VERSION_NOTIFICATION`: Display notification when a new version of Registry Explorer is available. This is a weekly check. (default: `true`).
 
 ### Theme options

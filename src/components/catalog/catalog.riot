@@ -308,10 +308,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
               }
             });
             next = page.next;
-            // nRepositories counts pullable names; nNamespaces counts what the
-            // tree actually shows at its top level. Reporting the flat length
-            // for both made the two badges always agree and broke the
-            // single-namespace auto-expand below.
             const displayed = this.groupByNamespace(names);
             this.update({
               repositoryNames: names,
@@ -320,10 +316,8 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
               nNamespaces: displayed.length,
               nextCatalogUrl: next,
             });
-            // Counts are fetched per page rather than after the whole run: a
-            // later page failing used to leave every repository already merged
-            // into the tree stuck on the pending badge forever, and hidden
-            // outright when "show tagless" was off.
+            // Per page, not after the loop: a later page failing would otherwise
+            // strand every repository already on screen on its pending badge.
             this.fetchCounts(added.splice(0), this.props);
           } while (loadAll && next);
         } catch (error) {

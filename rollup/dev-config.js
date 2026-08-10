@@ -9,6 +9,7 @@
  */
 
 const DEV_DEFAULTS = {
+  APP_NAME: '',
   DOCKER_REGISTRY_UI_TITLE: '',
   REGISTRY_TITLE: 'Development Registry',
   PULL_URL: '',

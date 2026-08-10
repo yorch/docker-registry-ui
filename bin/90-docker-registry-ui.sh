@@ -1,5 +1,6 @@
 #!/bin/sh
 
+sed -i "s~\${APP_NAME}~${APP_NAME}~" index.html
 sed -i "s~\${DOCKER_REGISTRY_UI_TITLE}~${DOCKER_REGISTRY_UI_TITLE}~" index.html
 sed -i "s~\${REGISTRY_URL}~${REGISTRY_URL}~" index.html
 sed -i "s~\${REGISTRY_TITLE}~${REGISTRY_TITLE}~" index.html
