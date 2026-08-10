@@ -8,6 +8,19 @@ permissions:
   contents: read
   packages: write
 
+# Two merges in quick succession used to start two builds that both push
+# `:main`, and whichever finished last won -- so a slow build of an older commit
+# could quietly leave `:main` behind, with every job green. Queue instead.
+#
+# `cancel-in-progress: false` rather than true: a run cancelled midway can have
+# pushed `:main` but not yet `:main-debian`, leaving the two variants on
+# different commits. Letting the in-flight run finish costs a few minutes and
+# guarantees both variants move together. GitHub keeps only the newest pending
+# run, so a burst of merges still collapses to one follow-up build.
+concurrency:
+  group: publish-main
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -39,8 +52,8 @@ jobs:
             COMMIT_HASH=${{ github.sha }}
           push: true
           tags: ghcr.io/yorch/docker-registry-ui:main
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=main-alpine
+          cache-to: type=gha,mode=max,scope=main-alpine
 
       - name: Build and push debian
         uses: docker/build-push-action@v7
@@ -52,5 +65,5 @@ jobs:
             COMMIT_HASH=${{ github.sha }}
           push: true
           tags: ghcr.io/yorch/docker-registry-ui:main-debian
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=main-debian
+          cache-to: type=gha,mode=max,scope=main-debian

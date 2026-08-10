@@ -5,6 +5,15 @@ on:
   push:
     branches-ignore: [main]
 
+# Pushing to a branch that has a PR open fires both triggers, which ran the
+# whole suite twice on the same commit. `head_ref` is the source branch on a
+# pull_request event and empty on a push, where `ref_name` is the branch -- so
+# both events land in one group and the second to start cancels the first.
+# The same group also cancels a superseded run when you push again mid-suite.
+concurrency:
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
