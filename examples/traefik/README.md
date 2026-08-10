@@ -1,6 +1,6 @@
 # Traefik example
 
-Host the docker registry ui behind [traefik](http://traefik.io) with Docker Swarm mode.
+Host Registry Explorer behind [traefik](http://traefik.io) with Docker Swarm mode.
 
 ## How to run
 
