@@ -3,14 +3,14 @@
     if="{ state.tag_name && !isNewestVersion(props.version, state.tag_name) }"
     class="btn btn--icon btn--sm"
     onclick="{ onClick }"
-    aria-label="A new version of Docker Registry UI is available"
-    title="A new version of Docker Registry UI is available"
+    aria-label="A new version of Registry Explorer is available"
+    title="A new version of Registry Explorer is available"
     type="button"
   >
     <span class="rocket"></span>
   </button>
   <app-dialog title="Check for updates" opened="{ state.open }" on-close="{ onClose }">
-    <p>The version <b>{ state.tag_name }</b> of Docker Registry UI is now available.</p>
+    <p>The version <b>{ state.tag_name }</b> of Registry Explorer is now available.</p>
     <p>You can download the latest version with docker.</p>
     <code class="pull-command">ghcr.io/yorch/docker-registry-ui:{ state.tag_name }</code>
     <div slot="footer">
@@ -64,7 +64,7 @@
           if (this.status === 200) {
             const latest = parseJSON(this.responseText);
             if (latest && self.tag_name !== latest.tag_name && !isNewestVersion(props.version, latest.tag_name)) {
-              props.onNotify('A new version of Docker Registry UI is available!');
+              props.onNotify('A new version of Registry Explorer is available!');
             }
             localStorage.setItem(LATEST, this.responseText);
             self.update({ tag_name: latest.tag_name, latest });
@@ -73,7 +73,7 @@
             props.onNotify('Cannot check for new updates. Will try again in 24 hours. See the browser console.');
 
             console.error(
-              `Cannot check for new Docker Registry UI updates. This is most likely a GitHub issue. You don't need to worry about it.`
+              `Cannot check for new Registry Explorer updates. This is most likely a GitHub issue. You don't need to worry about it.`
             );
 
             console.error(`Got status code ${this.status} from Github API with response ${this.responseText}`);

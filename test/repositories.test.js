@@ -20,14 +20,17 @@ describe('repositories', () => {
       assert.deepEqual(branching(['alpine', 'debian', 'nginx']), ['alpine', 'debian', 'nginx']);
       assert.deepEqual(branching(['alpine', 'joxit/docker-registry-ui', 'nginx']), [
         'alpine',
-        { images: ['joxit/docker-registry-ui'], repo: 'joxit/' },
+        { repositories: ['joxit/docker-registry-ui'], namespace: 'joxit/' },
         'nginx',
       ]);
       assert.deepEqual(
         branching(['alpine', 'joxit/docker-registry-ui', 'joxit/kokai', 'joxit/docker-registry-ui/amd64', 'nginx']),
         [
           'alpine',
-          { images: ['joxit/docker-registry-ui', 'joxit/docker-registry-ui/amd64', 'joxit/kokai'], repo: 'joxit/' },
+          {
+            repositories: ['joxit/docker-registry-ui', 'joxit/docker-registry-ui/amd64', 'joxit/kokai'],
+            namespace: 'joxit/',
+          },
           'nginx',
         ],
       );
@@ -56,13 +59,13 @@ describe('repositories', () => {
           'alpine',
           'joxit/docker-registry-ui',
           {
-            images: [
+            repositories: [
               'joxit/docker-registry-ui/amd64',
               'joxit/docker-registry-ui/amd64/latest',
               'joxit/docker-registry-ui/armv7',
               'joxit/docker-registry-ui/armv7/latest',
             ],
-            repo: 'joxit/docker-registry-ui/',
+            namespace: 'joxit/docker-registry-ui/',
           },
           'joxit/kokai',
           'nginx',
@@ -75,7 +78,7 @@ describe('repositories', () => {
       assert.deepEqual(branching(['alpine', 'debian', 'nginx']), ['alpine', 'debian', 'nginx']);
       assert.deepEqual(branching(['alpine', 'joxit/docker-registry-ui', 'nginx']), [
         'alpine',
-        { images: ['joxit/docker-registry-ui'], repo: 'joxit/' },
+        { repositories: ['joxit/docker-registry-ui'], namespace: 'joxit/' },
         'nginx',
       ]);
       assert.deepEqual(
@@ -92,20 +95,20 @@ describe('repositories', () => {
         [
           'alpine',
           {
-            images: [
+            repositories: [
               'joxit/docker-registry-ui',
               {
-                images: [
+                repositories: [
                   'joxit/docker-registry-ui/amd64',
                   'joxit/docker-registry-ui/amd64/latest',
                   'joxit/docker-registry-ui/armv7',
                   'joxit/docker-registry-ui/armv7/latest',
                 ],
-                repo: 'joxit/docker-registry-ui/',
+                namespace: 'joxit/docker-registry-ui/',
               },
               'joxit/kokai',
             ],
-            repo: 'joxit/',
+            namespace: 'joxit/',
           },
           'nginx',
         ],

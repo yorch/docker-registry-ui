@@ -1,4 +1,4 @@
-# Kubernetes installation of Docker Registry UI
+# Kubernetes installation of Registry Explorer
 
 ## Full installation
 Install a registry and docker-registry-ui as frontend of this registry to kubernetes.

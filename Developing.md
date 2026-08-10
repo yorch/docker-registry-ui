@@ -1,6 +1,6 @@
-# How to build Docker Registry UI
+# How to build Registry Explorer
 
-This file contains tips to help you take (and understand) your first steps in Docker Registry UI development.
+This file contains tips to help you take (and understand) your first steps in Registry Explorer development.
 
 ## Clone and install the repository
 
