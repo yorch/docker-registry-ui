@@ -61,6 +61,13 @@ export default {
   home() {
     return baseUrl({ page: null });
   },
+  // Actually navigates to the catalog. home() only builds the URL, so calling it
+  // for its side effect left the tag list or tag history on screen. The popstate
+  // is what @riotjs/route listens to, so it re-matches the routes for the new URL.
+  goHome() {
+    window.history.pushState(null, '', baseUrl({ page: null }));
+    window.dispatchEvent(new window.PopStateEvent('popstate'));
+  },
   taglist(image) {
     return `${baseUrl({ page: null })}#!/taglist/${image}`;
   },
@@ -78,7 +85,7 @@ export default {
   },
   updateQueryString(qs) {
     const search = toSearchString(updateQueryParams(qs));
-    history.pushState(null, '', search + window.location.hash);
+    window.history.pushState(null, '', search + window.location.hash);
   },
   updateUrlQueryParam(url) {
     this.updateQueryString({ url: encodeURI(url) });
