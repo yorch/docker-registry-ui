@@ -9,7 +9,10 @@ is marked _unverified_. The test suite and linter were not run by the reviewers 
 
 ## Status key
 
-- **Fixed in this PR**: tackled by the critical/high pass (`fix/review-critical-high`).
+- **Fixed**: the critical/high pass (#25) and the follow-up pass over the medium and
+  low items (#26 to #31). The section "Status after the follow-up pass" at the end lists
+  exactly what is done, so the per-item lists below are the original findings and some
+  of them are now fixed.
 - **Open**: not yet addressed. Tracked here so it is not lost.
 
 ## How the findings are grouped
@@ -152,13 +155,52 @@ were fixed in the same PR with tests that were watched failing first:
 
 ---
 
-## Recommended order for the open items
+## Status after the follow-up pass
 
-1. nginx method restriction and security headers (M-SEC-1, M-SEC-2).
-2. Entrypoint escaping (M-SEC-4), then the remaining workflow hardening (M-SEC-3, M-BLD-1).
-3. The correctness group (M-COR-1 through M-COR-12).
-4. Accessibility, starting with contrast tokens and `aria-hidden` (M-A11Y-1 to M-A11Y-3), then dialog focus management.
-5. Licence headers (M-LIC-1) and the documentation drift.
+Every item was implemented by a fresh agent, attacked by an Opus adversarial reviewer
+and merged only with CI green (including a new container smoke test on both images).
+
+| PR | Covers |
+|---|---|
+| #26 | M-COR-1, 2, 7, 10; version-notification (state key, retry timing, https-only link); error-page `href` scheme check (part of M-SEC-6); router regexes |
+| #27 | Reproducible-build dates and cosign/referrers tags protected in retention; M-COR-3, 4, 5, 6, 8, 9; M-SEC-5 (hash-verified cache, `drui:v2:` namespace); alias snapshot renewal; keep-newest no longer ranks index children |
+| #28 | M-A11Y-1 to 7; pagination labels, heading outline, `font-display` |
+| #29 | M-SEC-1 (DELETE denied unless `DELETE_IMAGES=true`), M-SEC-2 (CSP and friends, `CONTENT_SECURITY_POLICY`), M-SEC-3 (SHA-pinned actions, Dependabot, `--ignore-scripts`), M-SEC-4 (entrypoint escaping), M-BLD-2, 3, 5 |
+| #30 | M-LIC-1, M-DOC-1/2, M-TST-1/2/3, dead code, `npm audit fix`, tracked runtime state untracked |
+| #31 | Platform order of an index no longer depends on which fetch finishes first (the flaky "inspect every platform" test) |
+| #25 | M-BLD-1 and M-TST-4 (release last, e2e before publishing) were done with the critical/high pass |
+
+Behaviour changes worth knowing about:
+
+- `DELETE_IMAGES` enables deletion only for the exact string `true`; `1`, `yes`, `True`
+  no longer do. Without it the nginx proxy answers DELETE with 403. `docker push`
+  through the proxy still works.
+- A stored theme from before #28 is ignored once (new key `registryUiThemeChoice`).
+- Keep-newest counts the N newest unprotected images; pattern tags, index children,
+  cosign/referrers tags and images without a trustworthy date never use a slot.
+
+### Still open
+
+- **Needs your decision:** the TLS key and Keycloak DB under `examples/` are untracked
+  but remain in git history. If the key was ever trusted anywhere, treat it as
+  compromised; scrubbing history is a rewrite.
+- **Repository admin:** branch protection on `main` (see below).
+- **Nothing verified in a real browser or screen reader:** the dialog focus trap, live
+  regions and `goHome()` are covered by jsdom tests only; the "Add registry" dialog does
+  not return focus (its opener closes with the popover).
+- **Retention:** the dialog's fresh alias check still costs one uncached manifest GET per
+  tag; an index referenced only by digest cannot be found through the tag list; there is
+  no UI toggle for `deleteCosignTags`.
+- **Smaller:** `version-notification` never writes its expiry when the request fails at
+  the network level and throws on a non-JSON 200; `bin/fill-registry` is unreferenced;
+  about 55 lines of unused `.switch` CSS; `MAX_CACHE_BYTES` unused; `core-js` is
+  injected by a stale Babel `corejs: 2` config (fix the Babel config, not the
+  dependency); 9 dev-only `npm audit` findings need breaking upgrades; no `HEALTHCHECK`
+  and no non-root default; topbar overflow at 320 to 375px and the snackbar over the
+  selection bar on mobile are unverified; text fields inside the registry-menu trigger
+  still use `--border`; the error page now has two `h1`s; `M-SEC-6` mock registry still
+  binds all interfaces with `ACAO: *`; the Keycloak example now starts from a blank
+  realm.
 
 ## Requires a repository admin
 
