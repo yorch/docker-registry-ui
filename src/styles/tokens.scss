@@ -12,6 +12,8 @@
  * kept as aliases so existing `THEME_*` environment variables keep working.
  */
 :root {
+  color-scheme: light;
+
   /* ------------------------------------------------------------------ *
    * Color                                                                *
    * ------------------------------------------------------------------ */
@@ -112,15 +114,15 @@
   --background: var(--surface);
   --hover-background: var(--surface-hover);
   --accent-text: var(--accent);
-  --header-text: var(--text-primary);
-  --header-accent-text: var(--text-secondary);
-  --header-background: var(--surface);
-  --footer-text: var(--text-secondary);
-  --footer-neutral-text: var(--text-muted);
-  --footer-background: var(--surface);
+  /* --header-* and --footer-* have no alias here on purpose: layout.scss reads
+     them as var(--header-text, var(--text-primary)) and so on. An alias declared
+     on :root would resolve against :root's tokens, and miss a THEME_* override
+     that theme.js writes lower in the tree. */
 }
 
 [data-theme='dark'] {
+  color-scheme: dark;
+
   --bg: #0b1220;
   --bg-glow: rgba(34, 197, 94, 0.07);
   --surface: #111a2c;

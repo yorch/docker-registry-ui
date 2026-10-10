@@ -165,7 +165,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     import { stripHttps, getRegistryServers, setRegistryServers, truthy, falsy, stringToArray, resolveAppName } from '../scripts/utils';
     import { authenticateRequest } from '../scripts/auth';
     import router from '../scripts/router';
-    import { loadTheme } from '../scripts/theme';
+    import { loadTheme, saveThemeChoice } from '../scripts/theme';
 
     export default {
       components: {
@@ -293,6 +293,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       onThemeChange() {
         const theme = this.state.themeSwitch ? 'light' : 'dark';
         loadTheme({ ...this.props, theme }, this.root.parentNode.style);
+        saveThemeChoice(theme);
         this.update({ themeSwitch: theme === 'dark' });
       },
       baseRoute: '([^#]*?)/(\\?[^#]*?)?(#!)?(/?)',

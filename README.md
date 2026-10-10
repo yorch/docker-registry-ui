@@ -174,7 +174,7 @@ There are some examples with [docker-compose](https://docs.docker.com/compose/) 
 
 ### Theme options
 
-The default palettes follow a modern SaaS look (neutral surfaces + green accent). The `THEME_*` variables override the corresponding design token; defaults come from `src/styles/tokens.scss`.
+The default palettes follow a modern SaaS look (neutral surfaces + green accent). The `THEME_*` variables override the corresponding design token; defaults come from `src/styles/tokens.scss`, except the `--header-*` and `--footer-*` rows, whose defaults are the fallbacks written into `src/styles/layout.scss`. The theme toggle remembers an explicit choice in `localStorage`; with `THEME=auto` and no choice made the OS preference is followed on every visit.
 
 | Environment variable | design token | light theme value | dark theme value |
 | --- | --- | --- | --- |

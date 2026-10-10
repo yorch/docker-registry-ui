@@ -10,7 +10,11 @@
  * and the modern tokens they alias in sync.
  */
 
-const LOCAL_STORAGE_THEME = 'registryUiTheme';
+// Holds only a theme the user picked with the toggle. It used to be
+// `registryUiTheme` and was written on every load with whatever had been
+// computed, so the OS preference was frozen after the first visit. The key is
+// new so those stale computed values are not mistaken for choices.
+const LOCAL_STORAGE_THEME = 'registryUiThemeChoice';
 
 /**
  * Mapping from legacy theme variable (as exposed by `THEME_*` env vars) to
@@ -37,9 +41,26 @@ const normalizeKey = (k) =>
     .toLowerCase()
     .replace(/^theme-/, '');
 
+const readThemeChoice = () => {
+  try {
+    return localStorage.getItem(LOCAL_STORAGE_THEME);
+  } catch (e) {
+    return null;
+  }
+};
+
+/** Remember an explicit light/dark choice; the computed theme is never stored. */
+export const saveThemeChoice = (theme) => {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_THEME, theme);
+  } catch (e) {
+    // Storage can be blocked; the choice then lasts for the session only.
+  }
+};
+
 const preferDarkMode = ({ theme }) => {
   if (theme === 'auto' || theme === '') {
-    switch (localStorage.getItem(LOCAL_STORAGE_THEME)) {
+    switch (readThemeChoice()) {
       case 'dark':
         return true;
       case 'light':
@@ -70,6 +91,5 @@ export const loadTheme = (props, style) => {
         style.setProperty(`--${modern}`, v);
       }
     });
-  localStorage.setItem(LOCAL_STORAGE_THEME, theme);
   return theme;
 };
