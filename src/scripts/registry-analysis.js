@@ -55,11 +55,19 @@ export const summarizeRegistry = (records, repositoryNames = [], unreadableRepos
   };
 };
 
+/*
+ * `unverifiedRepositories` are repositories where any tag could not be inspected.
+ * An index that failed inspection leaves no record, so nothing in the plan can
+ * say what it references; the only safe reading is that any candidate in that
+ * repository might be one of its children, and none is offered.
+ */
 export const planRetention = (
   records,
   { olderThanDays = 90, keepNewest = 5, protectedPatterns = ['latest', 'stable'] } = {},
   now = new Date(),
+  unverifiedRepositories = [],
 ) => {
+  const unverified = new Set(unverifiedRepositories);
   const cutoff = now.getTime() - Math.max(0, olderThanDays) * 86400000;
   const patterns = compilePatterns(protectedPatterns);
   const candidates = [];
@@ -75,6 +83,7 @@ export const planRetention = (
     const sorted = [...repositoryRecords].sort(byNewest);
     const keptTags = new Set(sorted.slice(0, Math.max(0, keepNewest)).map((record) => record.tag));
     const byDigest = new Map();
+    const verdicts = [];
     sorted.forEach((record) => {
       const key = record.digest;
       if (!key) {
@@ -106,7 +115,7 @@ export const planRetention = (
         });
         return;
       }
-      candidates.push({
+      verdicts.push({
         repository,
         digest,
         tags: aliases.map((record) => record.tag),
@@ -118,6 +127,44 @@ export const planRetention = (
         created: aliases[0].created,
         size: Math.max(...aliases.map((record) => Number(record.size) || 0)),
       });
+    });
+
+    /*
+     * Deleting a manifest breaks every index that references it, so a digest an
+     * index points at is not ours to delete even when its own tag (app:1.0-amd64)
+     * is old and unprotected. Every index in the repository counts, kept or
+     * candidate: a candidate index is not guaranteed to go (the user can select
+     * only the child, or the index's own delete can fail while the child's
+     * succeeds), and a child deleted under a surviving index breaks it. A child
+     * therefore waits for a later run, once its index is really gone.
+     * `references` is the full descendant set, attestations and nested indexes
+     * included; `platforms` is unioned in for records that only carry that.
+     */
+    const referenced = new Map();
+    repositoryRecords.forEach((record) => {
+      if (!record.isIndex) return;
+      const digests = [...(record.references || []), ...(record.platforms || []).map((platform) => platform.digest)];
+      digests.forEach((digest) => {
+        if (digest && digest !== record.digest && !referenced.has(digest)) referenced.set(digest, record.tag);
+      });
+    });
+    verdicts.forEach((candidate) => {
+      const parent = referenced.get(candidate.digest);
+      if (unverified.has(repository)) {
+        skipped.push({
+          repository,
+          digest: candidate.digest,
+          tags: candidate.tags,
+          reason: 'Repository not fully inspected',
+        });
+      } else if (parent === undefined) candidates.push(candidate);
+      else
+        skipped.push({
+          repository,
+          digest: candidate.digest,
+          tags: candidate.tags,
+          reason: `Referenced by index ${parent}`,
+        });
     });
   });
   return { candidates, skipped, cutoff: new Date(cutoff).toISOString() };

@@ -93,6 +93,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   <div class="list-group" if="{ state.loadend && hasVisibleRepositories() }">
     <catalog-element
       each="{ item in state.tree }"
+      key="{ item.namespace ? 'ns:' + item.namespace : item }"
       item="{ item }"
       filter-results="{ props.filterResults }"
       registry-url="{ props.registryUrl }"
@@ -177,8 +178,28 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       onMounted(props, state) {
         this.display(props, state);
       },
-      onUpdated(props, state) {
-        this.display(props, state);
+      // A registry switch is reset here, not in onUpdated: Riot skips the DOM
+      // patch for an update() made while a render is finishing, so the loading
+      // state never showed and the old registry's rows stayed on screen. State
+      // mutated in this hook is part of the render that follows. The request
+      // itself starts afterwards (see onUpdated).
+      onBeforeUpdate(props, state) {
+        if (props.registryUrl !== state.registryUrl) {
+          this.fetchPending = this.beginLoad(props, state);
+        }
+      },
+      onUpdated() {
+        if (this.fetchPending === undefined) return;
+        const generation = this.fetchPending;
+        this.fetchPending = undefined;
+        // Deferred: the request may complete synchronously and update() from
+        // here would be skipped just like the reset used to be, and the
+        // parent's onClearPageError below must not run inside its own render.
+        queueMicrotask(() => {
+          if (generation === this.requestGeneration) {
+            this.fetchCatalog(this.props, this.state, generation);
+          }
+        });
       },
       onToggleTagless(event) {
         const showTagless = event.target.checked;
@@ -336,6 +357,13 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         if (!refresh && props.registryUrl === state.registryUrl) {
           return;
         }
+        const generation = this.beginLoad(props, state, refresh);
+        this.fetchCatalog(props, state, generation, refresh);
+      },
+      // Everything that supersedes the previous load, without starting the new
+      // one. Safe to call from onBeforeUpdate: it only mutates state, except
+      // for a refresh, which is only ever requested from an event handler.
+      beginLoad(props, state, refresh = false) {
         const generation = (this.requestGeneration || 0) + 1;
         this.requestGeneration = generation;
         this.activeRequest?.abort();
@@ -344,17 +372,20 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           invalidateRegistry(props.registryUrl);
           this.update({ refreshing: true });
         } else {
-          this.update({ loadend: false, tree: [], repositoryNames: [], counts: {}, refreshing: false });
-        }
-        // Loading a different registry supersedes whatever page-level error the
-        // previous one produced.
-        if (props.onClearPageError) {
-          props.onClearPageError();
+          Object.assign(state, { loadend: false, tree: [], repositoryNames: [], counts: {}, refreshing: false });
         }
         this.cancelPendingCounts();
         // Counts queued for the registry we are leaving are worthless now, and
         // they would otherwise be served ahead of this registry's own.
         requestPool.drop();
+        return generation;
+      },
+      fetchCatalog(props, state, generation, refresh = false) {
+        // Loading a different registry supersedes whatever page-level error the
+        // previous one produced.
+        if (props.onClearPageError) {
+          props.onClearPageError();
+        }
         let tree = [];
         let repositoryNames = [];
         let nextCatalogUrl;
@@ -375,7 +406,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
             repositoryNames = (JSON.parse(this.responseText).repositories || []).sort();
             tree = self.groupByNamespace(repositoryNames);
             nRepositories = repositoryNames.length;
-            nextCatalogUrl = parseNextLink(this.getResponseHeader('Link'), catalogUrl);
+            nextCatalogUrl = parseNextLink(this.getResponseHeader('Link'), catalogUrl, props.registryUrl);
           } else if (this.status === 404) {
             self.props.onNotify({ code: 'CATALOG_NOT_FOUND', url: catalogUrl }, true);
           } else if (this.status === 400) {

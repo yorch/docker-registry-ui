@@ -1,0 +1,30 @@
+<stale-ui-table-host>
+  <tag-table
+    tags="{ state.tags }"
+    all-tags="{ state.allTags || state.tags }"
+    asc="{ true }"
+    page="{ state.page }"
+    tags-per-page="{ props.tagsPerPage }"
+    show-content-digest="{ false }"
+    show-tag-history="{ false }"
+    is-image-remove-activated="{ true }"
+    registry-url="http://registry.invalid"
+    pull-url=""
+    filter-results=""
+    on-notify="{ () => {} }"
+    on-authentication="{ () => {} }"
+    is-registry-secured="{ false }"
+    onReverseOrder="{ () => {} }"
+    on-image-deleted="{ () => {} }"
+  ></tag-table>
+  <script>
+    import TagTable from '../../src/components/tag-list/tag-table.riot';
+    // Stands in for <tag-list>, which owns the tags and the page and re-renders the table with new ones.
+    export default {
+      components: { TagTable },
+      onBeforeMount(props) {
+        this.state = { tags: props.tags, page: props.page || 1 };
+      },
+    };
+  </script>
+</stale-ui-table-host>

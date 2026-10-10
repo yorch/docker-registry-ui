@@ -8,6 +8,15 @@
  *   GET    /v2/<name>/blobs/<digest>
  *   DELETE /v2/<name>/manifests/<digest>
  *
+ * DELETE by tag is refused with 405, as Distribution does: only digests can be
+ * deleted. `allowDelete: false` refuses every DELETE the way a registry running
+ * with deletes disabled does.
+ *
+ * `tagPageSize` makes tags/list behave like a paginating registry: tags come
+ * back lexicographically sorted, `n` and `last` are honoured (n capped at the
+ * page size) and a `Link: rel="next"` header is sent while more remain. It is
+ * off by default so tag order stays as the fixtures declare it.
+ *
  * Digests are real: every manifest is hashed with sha256 over the exact bytes
  * served, so content addressing, the Docker-Content-Digest header, caching and
  * delete-by-digest all behave as they do against a real registry rather than
@@ -140,6 +149,8 @@ export const createMockRegistry = async ({
   port = DEFAULT_MOCK_PORT,
   fixtures = defaultFixtures,
   latency = 0,
+  allowDelete = true,
+  tagPageSize,
 } = {}) => {
   const repositories = buildStore(fixtures);
   // Lets a test assert how many times something was asked for, which is how you
@@ -150,6 +161,8 @@ export const createMockRegistry = async ({
     const url = new URL(req.url, 'http://localhost');
     const path = decodeURIComponent(url.pathname);
     requests.set(path, (requests.get(path) || 0) + 1);
+    const methodKey = `${req.method} ${path}`;
+    requests.set(methodKey, (requests.get(methodKey) || 0) + 1);
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204, CORS_HEADERS);
@@ -190,7 +203,19 @@ export const createMockRegistry = async ({
     }
 
     if (tagsList) {
-      const tags = [...repository.tags.keys()];
+      let tags = [...repository.tags.keys()];
+      if (tagPageSize) {
+        const limit = Math.min(Number(url.searchParams.get('n')) || tagPageSize, tagPageSize);
+        const last = url.searchParams.get('last');
+        const sorted = tags.sort();
+        const start = last ? sorted.findIndex((tag) => tag > last) : 0;
+        tags = start < 0 ? [] : sorted.slice(start, start + limit);
+        const more = start >= 0 && start + limit < sorted.length;
+        const headers = more
+          ? { Link: `<${path}?n=${limit}&last=${encodeURIComponent(tags.at(-1))}>; rel="next"` }
+          : {};
+        return send(res, 200, { name: tagsList[1], tags: tags.length ? tags : null }, headers);
+      }
       // A real registry reports a repository with no tags as null, not [].
       return send(res, 200, { name: tagsList[1], tags: tags.length ? tags : null });
     }
@@ -200,6 +225,9 @@ export const createMockRegistry = async ({
       const digest = repository.tags.get(reference) || reference;
 
       if (req.method === 'DELETE') {
+        if (!allowDelete || !reference.startsWith('sha256:')) {
+          return sendError(res, 405, 'UNSUPPORTED', 'The operation is unsupported.');
+        }
         if (!repository.manifests.has(digest)) {
           return notFound(res);
         }
@@ -257,7 +285,9 @@ export const createMockRegistry = async ({
   return {
     url: `http://localhost:${address.port}`,
     port: address.port,
-    requestCount: (path) => requests.get(path) || 0,
+    // Pass a method to count only that verb: a cross-origin DELETE is
+    // preceded by an OPTIONS preflight on the same path.
+    requestCount: (path, method) => requests.get(method ? `${method} ${path}` : path) || 0,
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 };

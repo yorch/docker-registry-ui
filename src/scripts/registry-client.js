@@ -5,7 +5,6 @@
  * consistent with the catalogue and tag list.
  */
 
-import { filterWrongManifests, supportListManifest } from './docker-image.js';
 import { Http } from './http.js';
 import { requestPool } from './request-pool.js';
 
@@ -16,17 +15,53 @@ export const MANIFEST_ACCEPT = [
   'application/vnd.docker.distribution.manifest.list.v2+json',
 ].join(', ');
 
-export const parseNextLink = (header, baseUrl) => {
+// A registry that never stops advertising a next page must not keep a scan (or
+// a delete verification) alive forever.
+export const MAX_PAGES = 1000;
+
+// Nested index levels walkIndex follows before failing closed.
+export const MAX_INDEX_DEPTH = 8;
+
+/*
+ * The Link header comes from the registry, but its target is still only a hint:
+ * following an absolute link to another origin would send the registry
+ * credentials there. A link is therefore followed only when it stays on the
+ * origin of the page that returned it and, when `registryUrl` is given, under
+ * that registry's base path. Anything else reads as unparseable, which callers
+ * treat as a failure rather than as the end of the list.
+ */
+export const parseNextLink = (header, baseUrl, registryUrl) => {
   if (!header) return undefined;
   const part = header.split(',').find((entry) => /;\s*rel\s*=\s*["']?next["']?/i.test(entry));
   const match = part && /<([^>]+)>/.exec(part);
   if (!match) return undefined;
   try {
-    return new URL(match[1], baseUrl).toString();
+    const target = new URL(match[1], baseUrl);
+    if (target.origin !== new URL(baseUrl).origin) return undefined;
+    if (registryUrl) {
+      const registry = new URL(registryUrl);
+      const prefix = registry.pathname.replace(/\/$/, '');
+      if (target.origin !== registry.origin) return undefined;
+      if (prefix && target.pathname !== prefix && !target.pathname.startsWith(`${prefix}/`)) return undefined;
+    }
+    return target.toString();
   } catch (_error) {
     return undefined;
   }
 };
+
+const hasNextRel = (link) => Boolean(link) && /rel\s*=\s*["']?next/i.test(link);
+
+const INDEX_TYPES = new Set([
+  'application/vnd.oci.image.index.v1+json',
+  'application/vnd.docker.distribution.manifest.list.v2+json',
+]);
+// Same predicate filterWrongManifests uses to hide attestations from display.
+const isAttestation = (descriptor) => descriptor.annotations?.['vnd.docker.reference.type'] === 'attestation-manifest';
+// Deliberately broader than supportListManifest, which answers "can the UI list
+// this as platforms" and says no to an OCI index with a non-OCI child or a
+// nested index. Protection must treat any index as an index.
+const isIndexManifest = (manifest) => Array.isArray(manifest?.manifests) || INDEX_TYPES.has(manifest?.mediaType);
 
 const sumLayers = (layers = []) => layers.reduce((total, layer) => total + (Number(layer.size) || 0), 0);
 
@@ -151,19 +186,25 @@ export class RegistryClient {
     const pageUrl = url || `${this.registryUrl}/v2/_catalog?n=${pageSize}`;
     visited?.add(pageUrl);
     const response = await this.request(pageUrl);
-    const next = parseNextLink(response.header('Link'), pageUrl);
+    const link = response.header('Link');
+    const next = parseNextLink(link, pageUrl, this.registryUrl);
+    if (!next && hasNextRel(link)) {
+      throw new Error('The repository catalogue has a next page that could not be followed');
+    }
     return {
       repositories: response.json?.repositories || [],
       next: next && visited?.has(next) ? undefined : next,
     };
   }
 
-  async allRepositories({ pageSize = 100, onProgress, isCancelled = () => false } = {}) {
+  async allRepositories({ pageSize = 100, onProgress, isCancelled = () => false, maxPages = MAX_PAGES } = {}) {
     const repositories = new Set();
     const visited = new Set();
     let next;
+    let pages = 0;
     do {
       if (isCancelled()) break;
+      if (++pages > maxPages) throw new Error(`The repository catalogue has more than ${maxPages} pages`);
       const page = await this.catalogPage({ url: next, pageSize, visited });
       page.repositories.forEach((name) => repositories.add(name));
       next = page.next;
@@ -172,9 +213,39 @@ export class RegistryClient {
     return [...repositories].sort();
   }
 
-  async tags(repository, { noCache = false } = {}) {
-    const response = await this.request(`${this.registryUrl}/v2/${repository}/tags/list`, { noCache });
-    return response.json?.tags || [];
+  /*
+   * Follows `Link: rel="next"` so a registry that paginates tags/list is read
+   * in full. A next link that cannot be followed -- unparseable, off the
+   * registry's origin or path, or pointing back at a page already read -- throws
+   * rather than returning what was read so far: callers such as currentAliases
+   * rely on this list being complete, and a partial one is indistinguishable
+   * from a repository that simply has fewer tags.
+   *
+   * Always read past the cache. Http replays a cached response without its Link
+   * header, and the catalogue caches this same URL for its tag counts, so a
+   * cached first page would look like the whole list.
+   */
+  async tags(repository, { maxPages = MAX_PAGES } = {}) {
+    const tags = [];
+    const visited = new Set();
+    let url = `${this.registryUrl}/v2/${repository}/tags/list`;
+    let pages = 0;
+    while (url) {
+      if (++pages > maxPages) throw new Error(`The tag list for ${repository} has more than ${maxPages} pages`);
+      visited.add(url);
+      const response = await this.request(url, { noCache: true });
+      tags.push(...(response.json?.tags || []));
+      const link = response.header('Link');
+      const next = parseNextLink(link, url, this.registryUrl);
+      if (!next && hasNextRel(link)) {
+        throw new Error(`The tag list for ${repository} has a next page that could not be followed`);
+      }
+      if (next && visited.has(next)) {
+        throw new Error(`The tag list for ${repository} links back to a page already read`);
+      }
+      url = next;
+    }
+    return tags;
   }
 
   async manifest(repository, reference, { noCache = false } = {}) {
@@ -195,9 +266,53 @@ export class RegistryClient {
     return (await this.request(`${this.registryUrl}/v2/${repository}/blobs/${digest}`)).json;
   }
 
+  /*
+   * Every digest an index reaches, however deep: its own descriptors (including
+   * the attestation descriptors the display hides) and, recursively, those of
+   * any nested index. Deleting any of them breaks the index. Returns the digests
+   * and the non-index manifests that were read on the way (inspectTag turns
+   * those into platforms). A manifest that cannot be read rejects, so a caller
+   * never mistakes a partly walked index for a fully walked one.
+   *
+   * Leaves are only fetched when `fetchLeaves` is set; descending needs just the
+   * nested indexes, recognised by their descriptor's media type. Nesting deeper
+   * than MAX_INDEX_DEPTH throws rather than returning a partial walk.
+   */
+  async walkIndex(repository, root, { noCache = false, fetchLeaves = false, visited = new Set(), depth = 0 } = {}) {
+    if (depth > MAX_INDEX_DEPTH) {
+      throw new Error(`Index ${repository}@${root.digest} is nested more than ${MAX_INDEX_DEPTH} levels deep`);
+    }
+    const references = new Set();
+    const leaves = [];
+    visited.add(root.digest);
+    await Promise.all(
+      (root.manifests || []).map(async (descriptor) => {
+        if (!descriptor.digest) return;
+        references.add(descriptor.digest);
+        if (isAttestation(descriptor) || visited.has(descriptor.digest)) return;
+        if (!fetchLeaves && !INDEX_TYPES.has(descriptor.mediaType)) return;
+        visited.add(descriptor.digest);
+        const manifest = await this.manifest(repository, descriptor.digest, { noCache });
+        if (isIndexManifest(manifest)) {
+          const nested = await this.walkIndex(repository, manifest, {
+            noCache,
+            fetchLeaves,
+            visited,
+            depth: depth + 1,
+          });
+          nested.references.forEach((digest) => references.add(digest));
+          leaves.push(...nested.leaves);
+        } else {
+          leaves.push({ descriptor, manifest });
+        }
+      }),
+    );
+    return { references, leaves };
+  }
+
   async inspectTag(repository, tag, { noCache = false } = {}) {
     const root = await this.manifest(repository, tag, { noCache });
-    if (!supportListManifest(root)) {
+    if (!isIndexManifest(root)) {
       const config = root.config?.digest ? await this.blob(repository, root.config.digest) : {};
       const layers = root.layers || [];
       return {
@@ -218,14 +333,14 @@ export class RegistryClient {
             layers,
           },
         ],
+        references: [],
         isIndex: false,
       };
     }
 
-    const descriptors = filterWrongManifests(root);
+    const { references, leaves } = await this.walkIndex(repository, root, { noCache, fetchLeaves: true });
     const platforms = await Promise.all(
-      descriptors.map(async (descriptor) => {
-        const manifest = await this.manifest(repository, descriptor.digest);
+      leaves.map(async ({ descriptor, manifest }) => {
         const config = manifest.config?.digest ? await this.blob(repository, manifest.config.digest) : {};
         const layers = manifest.layers || [];
         return {
@@ -253,30 +368,38 @@ export class RegistryClient {
       size: sumLayers([...uniqueLayers.values()]),
       layers: [...uniqueLayers.values()],
       platforms,
+      // The whole descendant set, attestations and nested indexes included, and
+      // not just the platforms shown: retention protects on this.
+      references: [...references],
       isIndex: true,
     };
   }
 
   /*
-   * The tags currently resolving to each manifest digest in a repository, read
-   * past the cache.
+   * What a retention preview or tag-list delete must re-check, read past the
+   * cache: `aliases` (digest -> tags now resolving to it) and `referenced`
+   * (digest -> the sorted index tags whose descendants include it).
    *
-   * This is the guard between a retention preview and an irreversible delete:
-   * `DELETE /manifests/<digest>` removes *every* tag resolving to that digest,
-   * so a tag pushed since the preview would be destroyed without ever having
-   * been shown. A tag whose manifest cannot be read, or whose digest neither the
-   * registry nor the browser can establish, makes the whole repository
-   * unverifiable -- refuse rather than delete on incomplete evidence.
+   * This is the guard between a preview and an irreversible delete:
+   * `DELETE /manifests/<digest>` removes *every* tag resolving to that digest
+   * and breaks every index referencing it, so a tag or an index created since
+   * the preview would be damaged without ever having been shown. A tag whose
+   * manifest cannot be read, or whose digest neither the registry nor the
+   * browser can establish, makes the whole repository unverifiable -- refuse
+   * rather than delete on incomplete evidence. An index referenced only by
+   * digest (no tag) cannot be discovered through the tag list; that is a limit
+   * of the registry API, not something this can close.
    *
    * One snapshot per repository is both cheaper and more consistent than
    * re-reading between deletes: deleting one digest cannot change which tags
    * resolve to a different one.
    */
   async currentAliases(repository) {
-    const tags = await this.tags(repository, { noCache: true });
+    const tags = await this.tags(repository);
     const settled = await Promise.allSettled(tags.map((tag) => this.manifest(repository, tag, { noCache: true })));
     const aliases = new Map();
-    settled.forEach((result, index) => {
+    const referenced = new Map();
+    const manifests = settled.map((result, index) => {
       if (result.status !== 'fulfilled') {
         throw new Error(`Could not re-read ${repository}:${tags[index]} to verify the preview; nothing was deleted`);
       }
@@ -286,9 +409,37 @@ export class RegistryClient {
             'Expose the Docker-Content-Digest header, or serve the UI over HTTPS so it can hash the manifest itself.',
         );
       }
-      aliases.set(result.value.digest, [...(aliases.get(result.value.digest) || []), tags[index]]);
+      return result.value;
     });
-    return aliases;
+    manifests.forEach((manifest, index) => {
+      aliases.set(manifest.digest, [...(aliases.get(manifest.digest) || []), tags[index]]);
+    });
+    await Promise.all(
+      manifests.map(async (manifest, index) => {
+        if (!isIndexManifest(manifest)) return;
+        let walked;
+        try {
+          // fetchLeaves: every non-attestation child is fetched and classified by
+          // its body, as inspectTag does, rather than trusting the descriptor's
+          // declared mediaType (a nested index whose descriptor omits or
+          // mislabels it would otherwise leave its children unprotected). The
+          // extra GET per child per tagged index is the price of failing closed.
+          // noCache: digest-addressed cache entries are not hash-verified.
+          walked = await this.walkIndex(repository, manifest, { noCache: true, fetchLeaves: true });
+        } catch (_error) {
+          throw new Error(
+            `Could not read the contents of index ${repository}:${tags[index]} to verify the preview; nothing was deleted`,
+          );
+        }
+        walked.references.forEach((digest) => {
+          referenced.set(digest, [...(referenced.get(digest) || []), tags[index]]);
+        });
+      }),
+    );
+    // Every parent index tag, in a stable order: the walks finish in whatever
+    // order the registry answers them.
+    referenced.forEach((parents, digest) => referenced.set(digest, [...new Set(parents)].sort()));
+    return { aliases, referenced };
   }
 
   deleteManifest(repository, digest) {

@@ -162,6 +162,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     import VersionNotification from './version-notification.riot';
     import Breadcrumbs from './breadcrumbs.riot';
     import { stripHttps, getRegistryServers, setRegistryServers, truthy, falsy, stringToArray, resolveAppName } from '../scripts/utils';
+    import { authenticateRequest } from '../scripts/auth';
     import router from '../scripts/router';
     import { loadTheme } from '../scripts/theme';
 
@@ -193,10 +194,14 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         };
 
         // props.singleRegistry === 'true' means old static version
-        const registryUrl =
-          props.registryUrl ||
-          (props.singleRegistry === 'true' ? undefined : router.getUrlQueryParam() || getRegistryServers(0)) ||
-          window.location.origin + window.location.pathname.replace(/\/+$/, '');
+        const queryUrl = props.singleRegistry === 'true' ? undefined : router.getUrlQueryParam();
+        const configuredUrl =
+          props.registryUrl || (props.singleRegistry === 'true' ? undefined : queryUrl || getRegistryServers(0));
+        const registryUrl = configuredUrl || window.location.origin + window.location.pathname.replace(/\/+$/, '');
+        // Proxy mode (REGISTRY_URL unset): the registry is served from the UI's
+        // own origin, so that origin is the operator's choice and is trusted.
+        // A `?url=` value is never trusted, and never reaches this branch.
+        this.uiOriginRegistry = configuredUrl ? undefined : registryUrl;
         this.state.registryUrl = registryUrl.replace(/\/$/, '').replace(/index(\.html?)?$/, '');
         this.state.title = resolveAppName(props.appName);
         this.state.name = props.name || stripHttps(props.registryUrl);
@@ -214,24 +219,22 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           snackbarMessage: 'Registry server changed to `' + registryUrl + '`.',
         });
       },
-      onAuthentication(opts, onAuthenticated) {
-        if (opts && opts.realm && opts.service && opts.scope) {
-          const { realm, service, scope } = opts;
-          const req = new XMLHttpRequest();
-          req.addEventListener('loadend', () => {
-            try {
-              const bearer = JSON.parse(req.responseText);
-              onAuthenticated(bearer);
-            } catch (e) {
-              this.notifySnackbar(`Failed to log in: ${e.message}`, true);
-            }
-          });
-          req.withCredentials = true;
-          req.open('GET', `${realm}?service=${service}&scope=${scope}`);
-          req.send();
-        } else {
-          onAuthenticated();
-        }
+      onAuthentication(opts, onAuthenticated, requestUrl) {
+        const trustedRegistries = [
+          this.props.registryUrl,
+          this.uiOriginRegistry,
+          ...(Array.isArray(this.props.defaultRegistries)
+            ? this.props.defaultRegistries
+            : stringToArray(this.props.defaultRegistries)),
+          ...getRegistryServers(),
+        ].filter(Boolean);
+        authenticateRequest(
+          opts,
+          requestUrl,
+          trustedRegistries,
+          (message, isError) => this.notifySnackbar(message, isError),
+          onAuthenticated,
+        );
       },
       pullUrl(registryUrl, pullUrl) {
         const url = pullUrl || (registryUrl && registryUrl.length > 0 && registryUrl) || window.location.host;

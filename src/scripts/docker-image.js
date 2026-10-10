@@ -140,9 +140,11 @@ export class DockerImage {
           // index routinely, so single-platform rows were reporting "Multiple"
           // beside a single architecture badge.
           self.isIndex = manifests.length > 1;
-          self.trigger('list', manifests);
           if (self.isIndex) {
+            // Assigned before 'list' fires: a listener creates variants[0] from
+            // inside that event, and assigning afterwards overwrote it.
             self.variants = [];
+            self.trigger('list', manifests);
             self.size = null;
             self.creationDate = null;
             self.trigger('size', self.size);
@@ -154,6 +156,7 @@ export class DockerImage {
           // the tag resolves to and what a delete must address.
           const only = new DockerImage(self.name, manifests[0].digest, { ...self.opts, list: false });
           self.variants = [only];
+          self.trigger('list', manifests);
           only.on('size', (size) => {
             self.size = size;
             self.trigger('size', size);

@@ -21,6 +21,11 @@
     import { router } from '@riotjs/route';
 
     export default {
+      onBeforeMount(props, state) {
+        // Without this the first keystroke sees undefined !== the prop and is
+        // taken for a reset, wiping what was just typed.
+        state.resetToken = props.resetToken;
+      },
       onMounted(props, state) {
         const input = this.$('input');
         let value = '';
@@ -51,13 +56,16 @@
           }
         });
       },
-      onUpdated(props, state) {
+      // Not onUpdated: Riot skips the DOM patch for an update() issued while a
+      // render is finishing, so the cleared value never reached the clear button.
+      // Mutating state here lands in the render that is about to happen.
+      onBeforeUpdate(props, state) {
         if (state.resetToken === props.resetToken) return;
         state.resetToken = props.resetToken;
         const input = this.$('input');
         if (input && input.value) {
           input.value = '';
-          this.update({ value: '' });
+          state.value = '';
         }
       },
       clear() {

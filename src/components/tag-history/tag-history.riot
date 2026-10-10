@@ -86,11 +86,24 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           useControlCacheHeader: props.useControlCacheHeader,
           isRegistrySecured: props.isRegistrySecured,
         });
-        state.image.fillInfo();
-      },
-      onMounted(props, state) {
+        // Subscribed before fillInfo(): a cache hit replays the response
+        // synchronously, so its events fire inside that call and anyone not
+        // listening yet misses them for good, leaving the spinner up forever.
         state.image.on('blobs', this.processBlobs);
         state.image.on('list', this.multiArchList);
+        state.image.fillInfo();
+      },
+      onMounted() {
+        this.mounted = true;
+      },
+      // Handlers can run before the first render, when update() is not allowed
+      // yet; the state they set is then simply what the first render shows.
+      apply(patch) {
+        if (this.mounted) {
+          this.update(patch);
+        } else {
+          Object.assign(this.state, patch);
+        }
       },
       onTabChanged(arch, idx) {
         const state = this.state;
@@ -109,8 +122,9 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         if (state.image.variants[idx].blobs) {
           return this.processBlobs(state.image.variants[idx].blobs);
         }
-        state.image.variants[idx].fillInfo();
+        // Subscribed first: a cache hit replays synchronously inside fillInfo().
         state.image.variants[idx].on('blobs', this.processBlobs);
+        state.image.variants[idx].fillInfo();
       },
       processBlobs(blobs) {
         const state = this.state;
@@ -132,7 +146,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         blobs.history.forEach(function (elt, i) {
           elements[blobs.history.length - i] = exec(elt);
         });
-        this.update({
+        this.apply({
           elements,
           loadend: true,
         });
@@ -149,7 +163,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
             digest: manifest.digest,
           };
         });
-        this.update({
+        this.apply({
           archs,
         });
         if (archs.length) this.onTabChanged(archs[0], 0);

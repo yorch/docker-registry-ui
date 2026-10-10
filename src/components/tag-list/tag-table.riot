@@ -81,7 +81,11 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       </tr>
     </thead>
     <tbody>
-      <tr each="{ image in getPage(props.tags, props.page) }" if="{ matchSearch(props.filterResults, image.tag) }">
+      <tr
+        each="{ image in getPage(props.tags, props.page) }"
+        key="{ image }"
+        if="{ matchSearch(props.filterResults, image.tag) }"
+      >
         <td class="select-col" if="{ props.isImageRemoveActivated }" data-label="Select">
           <remove-image
             multi-delete="{ state.multiDelete }"
@@ -170,6 +174,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           toDelete: new Set(),
           multiDelete: false,
           page: props.page,
+          knownTags: props.allTags,
         };
       },
       onBeforeUpdate(props, state) {
@@ -177,6 +182,19 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           state.toDelete.clear();
         }
         state.page = props.page;
+        // A refresh, a reload after a delete or navigation to another repository
+        // hands this table a new fetched list (the parent replaces `allTags` only
+        // on a fetch; reversing reorders it in place). A selection made against
+        // the old one would otherwise outlive it, with Delete still pointing at
+        // tags that are no longer on screen. A changed search filters `tags` but
+        // leaves `allTags` alone, and typing must not end the user's selection:
+        // the confirmation lists exactly what `toDelete` holds.
+        if (state.knownTags !== props.allTags) {
+          state.toDelete.clear();
+          state.multiDelete = false;
+          state.selectedImage = undefined;
+          state.knownTags = props.allTags;
+        }
       },
       deleteImages() {
         this.update({

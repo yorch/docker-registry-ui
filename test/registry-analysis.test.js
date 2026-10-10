@@ -103,3 +103,128 @@ describe('registry analysis', () => {
     assert.equal(plan.candidates[0].created, '2024-02-29T20:00:00-05:00');
   });
 });
+
+describe('retention and multi-platform indexes', () => {
+  const NOW = new Date('2026-08-09');
+  const policy = { olderThanDays: 30, keepNewest: 0, protectedPatterns: ['latest'] };
+  const index = (tag, created, children, digest = `sha256:${tag}`) => ({
+    ...record(tag, created, digest),
+    isIndex: true,
+    platforms: children.map((child) => ({ digest: child })),
+    references: children,
+  });
+
+  it('should not delete a tagged child of a kept index', () => {
+    const plan = planRetention(
+      [
+        index('latest', '2024-01-01', ['sha256:amd64', 'sha256:arm64']),
+        record('1.0-amd64', '2024-01-01', 'sha256:amd64'),
+        record('1.0-arm64', '2024-01-01', 'sha256:arm64'),
+        record('unrelated', '2024-01-01'),
+      ],
+      policy,
+      NOW,
+    );
+    assert.deepEqual(
+      plan.candidates.map((c) => c.tags),
+      [['unrelated']],
+    );
+    const child = plan.skipped.find((s) => s.tags.includes('1.0-amd64'));
+    assert.equal(child.reason, 'Referenced by index latest');
+  });
+
+  it('should protect children of an index kept among the newest N', () => {
+    const plan = planRetention(
+      [index('v2', '2025-06-01', ['sha256:c']), record('v2-child', '2024-01-01', 'sha256:c')],
+      { ...policy, keepNewest: 1 },
+      NOW,
+    );
+    assert.equal(plan.candidates.length, 0);
+  });
+
+  /*
+   * A candidate index used to be assumed gone, so its children were offered
+   * too. But the user can select only the child, or the index's own delete can
+   * fail while the child's succeeds, leaving a live index pointing at nothing.
+   * The child therefore waits until the index is actually gone (a later run).
+   */
+  it('should hold a child back while its index is itself only a candidate', () => {
+    const plan = planRetention(
+      [index('v1', '2024-01-01', ['sha256:c']), record('v1-child', '2024-01-01', 'sha256:c')],
+      policy,
+      NOW,
+    );
+    assert.deepEqual(
+      plan.candidates.map((c) => c.tags),
+      [['v1']],
+    );
+    assert.equal(plan.skipped.find((s) => s.tags.includes('v1-child')).reason, 'Referenced by index v1');
+  });
+
+  it('should protect on the full descendant set, not only the listed platforms', () => {
+    const plan = planRetention(
+      [
+        { ...index('latest', '2024-01-01', []), references: ['sha256:attestation', 'sha256:nested-child'] },
+        record('att', '2024-01-01', 'sha256:attestation'),
+        record('grandchild', '2024-01-01', 'sha256:nested-child'),
+      ],
+      policy,
+      NOW,
+    );
+    assert.deepEqual(plan.candidates, []);
+  });
+
+  it('should skip every candidate in a repository that was not fully inspected', () => {
+    const plan = planRetention(
+      [record('old', '2024-01-01', 'sha256:old'), record('other', '2024-01-01', 'sha256:other', 'clean/app')],
+      policy,
+      NOW,
+      new Set(['team/app']),
+    );
+    assert.deepEqual(
+      plan.candidates.map((c) => c.repository),
+      ['clean/app'],
+    );
+    assert.match(plan.skipped.find((s) => s.repository === 'team/app').reason, /not fully inspected/);
+  });
+
+  it('should still protect a child that another kept index also references', () => {
+    const plan = planRetention(
+      [
+        index('v1', '2024-01-01', ['sha256:c']),
+        index('latest', '2024-01-01', ['sha256:c'], 'sha256:latest'),
+        record('v1-child', '2024-01-01', 'sha256:c'),
+      ],
+      policy,
+      NOW,
+    );
+    assert.deepEqual(
+      plan.candidates.map((c) => c.tags),
+      [['v1']],
+    );
+  });
+
+  it('should not treat a single-platform manifest as referencing itself or others', () => {
+    const plan = planRetention(
+      [
+        { ...record('latest', '2024-01-01'), isIndex: false, platforms: [{ digest: 'sha256:latest' }] },
+        record('old', '2024-01-01'),
+      ],
+      policy,
+      NOW,
+    );
+    assert.deepEqual(
+      plan.candidates.map((c) => c.tags),
+      [['old']],
+    );
+  });
+
+  it('should not let a child in another repository be protected', () => {
+    const plan = planRetention(
+      [index('latest', '2024-01-01', ['sha256:c']), record('child', '2024-01-01', 'sha256:c', 'other/app')],
+      policy,
+      NOW,
+    );
+    assert.equal(plan.candidates.length, 1);
+  });
+});

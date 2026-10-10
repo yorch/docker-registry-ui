@@ -39,9 +39,16 @@ export class Http {
       // Same origin or advanced CORS headers set:
       // 'Access-Control-Expose-Headers: Docker-Content-Digest'
       cb(this.oReq.getResponseHeader('Docker-Content-Digest'));
-    } else if (window.crypto && window.TextEncoder) {
-      crypto.subtle
-        .digest('SHA-256', new TextEncoder().encode(this.oReq.responseText || this.cache?.responseText))
+    } else if (window.crypto?.subtle && window.TextEncoder) {
+      // `crypto.subtle` only exists on secure contexts, so plain http:// pages
+      // land in the else branch below.
+      const text = this.oReq.responseText || this.cache?.responseText;
+      if (typeof text !== 'string') {
+        cb(undefined);
+        return;
+      }
+      window.crypto.subtle
+        .digest('SHA-256', new TextEncoder().encode(text))
         .then((buffer) => {
           cb(
             'sha256:' +
@@ -49,10 +56,12 @@ export class Http {
                 .map((byte) => byte.toString(16).padStart(2, '0'))
                 .join(''),
           );
-        });
+        })
+        .catch(() => cb(undefined));
     } else {
-      // IE and old Edge
-      // simply do not call the callback and skip the setup downstream
+      // Insecure context or an old browser: no digest, and callers take their
+      // "no digest" path instead of waiting on a callback that never fires.
+      cb(undefined);
     }
   }
 
@@ -65,28 +74,55 @@ export class Http {
           const tokenAuth =
             this.hasHeader('www-authenticate') && parseAuthenticateHeader(this.getResponseHeader('www-authenticate'));
           if (this.status === 401 && (!this.withCredentials || tokenAuth)) {
-            self.onAuthentication(tokenAuth, (bearer) => {
-              const req = new XMLHttpRequest();
-              req._url = self._url;
-              req.open(self._method, self._url);
-              for (const key in self._events) {
-                req.addEventListener(key, self._events[key]);
+            const origin = (url) => {
+              try {
+                return new URL(url).origin;
+              } catch (_e) {
+                return undefined;
               }
-              for (const key in self._headers) {
-                req.setRequestHeader(key, self._headers[key]);
-              }
-              if (bearer?.token) {
-                req.setRequestHeader('Authorization', `Bearer ${bearer.token}`);
-              } else if (bearer?.access_token) {
-                req.setRequestHeader('Authorization', `Bearer ${bearer.access_token}`);
-              } else {
-                req.withCredentials = true;
-              }
-              req.hasHeader = hasHeader;
-              req.getErrorMessage = getErrorMessage;
-              self.oReq = req;
-              req.send();
-            });
+            };
+            const requestUrl = self._url;
+            self.onAuthentication(
+              tokenAuth,
+              (bearer) => {
+                const token = bearer?.token || bearer?.access_token;
+                // The bearer was minted for the origin that answered 401. Never
+                // send it anywhere else (a redirect, a re-opened Http).
+                const answeredFrom = origin(this.responseURL || requestUrl);
+                if (token && (answeredFrom !== origin(requestUrl) || origin(self._url) !== origin(requestUrl))) {
+                  f.bind(this)();
+                  return;
+                }
+                const previous = self.oReq;
+                try {
+                  const req = new XMLHttpRequest();
+                  req._url = self._url;
+                  req.open(self._method, self._url);
+                  for (const key in self._events) {
+                    req.addEventListener(key, self._events[key]);
+                  }
+                  for (const key in self._headers) {
+                    req.setRequestHeader(key, self._headers[key]);
+                  }
+                  if (token) {
+                    req.setRequestHeader('Authorization', `Bearer ${token}`);
+                  } else {
+                    req.withCredentials = true;
+                  }
+                  req.hasHeader = hasHeader;
+                  req.getErrorMessage = getErrorMessage;
+                  self.oReq = req;
+                  req.send();
+                } catch (_e) {
+                  // The replay could not be built or sent (for example a token
+                  // that is not a valid header value). Settle the caller with
+                  // the original 401 instead of leaving it waiting forever.
+                  self.oReq = previous;
+                  f.bind(this)();
+                }
+              },
+              requestUrl,
+            );
           } else {
             (this.status === 200 || this.status === 202) &&
               !self.withCredentials &&

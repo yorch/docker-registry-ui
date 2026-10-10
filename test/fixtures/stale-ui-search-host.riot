@@ -1,0 +1,12 @@
+<stale-ui-search-host>
+  <search-bar on-search="{ () => {} }" reset-token="{ state.token }"></search-bar>
+  <script>
+    import SearchBar from '../../src/components/search-bar.riot';
+    export default {
+      components: { SearchBar },
+      onBeforeMount() {
+        this.state = { token: 0 };
+      },
+    };
+  </script>
+</stale-ui-search-host>

@@ -131,18 +131,41 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       // component mounted and swaps `image` rather than remounting. Fetching
       // only on mount left the previous repository's tags on screen under the
       // new repository's name.
-      onUpdated(props, state) {
+      //
+      // The reset is applied here, to state, so it is part of the render that is
+      // already under way: an update() issued from onUpdated is merged but never
+      // patched into the DOM, which left the old rows (and their Delete buttons)
+      // on screen. What cannot run mid-render -- the request, the URL change --
+      // starts from onUpdated, deferred.
+      onBeforeUpdate(props, state) {
         if (props.image !== state.loadedImage) {
-          this.display(props, state);
+          this.fetchPending = this.beginLoad(props, state);
         } else if (props.filterResults !== state.loadedFilter) {
           state.loadedFilter = props.filterResults;
           if (state.page !== 1) {
-            this.update({ page: 1 });
-            router.updatePageQueryParam(1);
+            state.page = 1;
+            this.pageResetPending = true;
           }
         }
       },
+      onUpdated() {
+        if (this.pageResetPending) {
+          this.pageResetPending = false;
+          queueMicrotask(() => router.updatePageQueryParam(1));
+        }
+        if (this.fetchPending === undefined) return;
+        const generation = this.fetchPending;
+        this.fetchPending = undefined;
+        // Deferred: a cached response completes synchronously, and the update()
+        // it ends in would be skipped from inside this hook.
+        queueMicrotask(() => {
+          if (generation === this.requestGeneration) {
+            this.fetchTags(this.props, this.state, generation, false);
+          }
+        });
+      },
       onBeforeUnmount() {
+        window.removeEventListener('resize', this.onResize);
         this.activeRequest?.abort();
         requestPool.drop();
         this.requestGeneration = (this.requestGeneration || 0) + 1;
@@ -151,23 +174,38 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         this.display(this.props, this.state, true);
       },
       display(props, state, refresh = false) {
-        // Claimed before anything can trigger a render, so the update() calls
-        // below cannot re-enter through onUpdated and start a second request.
+        const generation = this.beginLoad(props, state, refresh);
+        this.fetchTags(props, state, generation, refresh);
+      },
+      // Supersedes the previous load without starting the next one. Safe to call
+      // from onBeforeUpdate: it only mutates state, except for a refresh, which
+      // is only ever requested from an event handler.
+      beginLoad(props, state, refresh = false) {
+        // Claimed before anything can trigger a render, so a render cannot
+        // re-enter and start a second request.
         state.loadedImage = props.image;
+        // A navigation that also changes the search must not look like a filter
+        // change on the next render, which would force page 1.
+        state.loadedFilter = props.filterResults;
         // Read from `this` rather than the captured arguments: by the time a
         // reload fires, the component may have moved on to another repository.
         state.reload = () => this.display(this.props, this.state, true);
         const generation = (this.requestGeneration || 0) + 1;
         this.requestGeneration = generation;
         this.activeRequest?.abort();
+        state.page = router.getPageQueryParam() || 1;
+        state.asc = true;
         if (refresh) {
           invalidateRepository(props.registryUrl, props.image);
+          // update() replaces this.state, so everything above has to be set first.
           this.update({ refreshing: true });
         } else {
           state.loadend = false;
+          state.tags = [];
         }
-        state.page = router.getPageQueryParam() || 1;
-        if (!refresh) state.tags = [];
+        return generation;
+      },
+      fetchTags(props, state, generation, refresh) {
         const self = this;
         const oReq = new Http({
           onAuthentication: props.onAuthentication,
@@ -216,7 +254,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         oReq.open('GET', props.registryUrl + '/v2/' + props.image + '/tags/list');
         this.activeRequest = oReq;
         oReq.send();
-        state.asc = true;
       },
 
       onPageUpdate(idx) {
