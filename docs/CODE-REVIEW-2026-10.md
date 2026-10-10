@@ -40,6 +40,53 @@ is marked _unverified_. The test suite and linter were not run by the reviewers 
 | H12 | **No publish gate.** `main` has no branch protection. `main.yml` and `release.yml` skip e2e. A prerelease tag such as `3.3.0-rc1` matches the release glob and would overwrite `:latest`, `:3`, `:3.3`. Nothing checks that the tag equals `package.json` version or that the commit is on `main`. | `.github/workflows/` | Workflow parts fixed in this PR; branch protection needs a repo admin |
 | H13 | **The destructive delete path is nearly untested.** `executeDelete` has no tests, and the mock registry accepts DELETE by tag (a real registry rejects it), has no 401, 405 or 5xx, and ignores `n`/`last` on `tags/list`. | `test/`, `dev/mock-registry/server.js` | Fixed in this PR |
 
+### What the adversarial pass added
+
+The critical/high fixes were attacked by three Opus reviewers, then the delete and
+retention changes by a fourth. They found real holes in the first-pass fixes, which
+were fixed in the same PR with tests that were watched failing first:
+
+- **H1 was bypassable.** Trust was judged from the UI's current registry, not the
+  request that got the 401. Trust is now decided from the request URL, and a minted
+  bearer is never replayed to another origin.
+- **H2 still wedged on a throwing callback and on a token server that never
+  answers.** Both now settle, and the token request has a 30s timeout.
+- **H5 was defeated by the cache.** A cached first `tags/list` page lost its `Link`
+  header, so pagination silently stopped. `tags()` is now always fetched fresh,
+  rejects cross-origin `Link` targets, and is capped.
+- **H6 missed mixed, nested and un-inspectable indexes**, and assumed a candidate
+  index would always be deleted. Indexes are now classified by their `manifests`
+  array, every descendant is recorded, repositories with a scan error are not
+  offered, and children of any index (kept or candidate) are held back.
+- **Execution time did not re-check index references.** `currentAliases` now also
+  returns every index that references a digest, and both delete paths refuse it.
+  Nested indexes are classified by their fetched body, not by a descriptor claim.
+- **H8 follow-ups:** multi-arch history showed the wrong architecture after a tab
+  switch; refreshed rows stayed bound to the old image object; typing in search
+  cleared the selection.
+
+## Known open items found by the adversarial pass (not fixed here)
+
+- **Reproducible-build dates break "keep newest".** Images built with
+  `SOURCE_DATE_EPOCH=0` (ko, bazel `rules_oci`, nix) carry a 1970 or `0001-01-01`
+  `created`. All dates tie, so ordering falls back to alphabetical tag order, and
+  retention can offer the newest releases. Proven at the plan level; how common this
+  is in the wild is unverified. Treat a pre-2000 `created` as "unavailable".
+- **Cosign `.sig`/`.att`/`.sbom` tags** may read as ancient and become candidates
+  (unverified). Protect them by default, or fix the date handling above.
+- **Registry behind a path prefix** (`https://host/registry`): the registry's `Link`
+  header is root-relative and is now rejected, so the scan and Load More throw. The old
+  code followed a wrong URL, so this is not a regression. See M-COR-9.
+- **The alias snapshot is taken once per repository** and held for the whole run, so
+  the window in which a tag can be pushed before its DELETE grows with the run.
+  Re-snapshot every N deletes or T seconds.
+- **The dialog's fresh alias check costs one uncached manifest GET per tag.** A
+  repository with thousands of tags makes a dialog delete slow.
+- **An index referenced only by digest (untagged)** cannot be found through the tag
+  list. The referrers API lists `subject` back-links, not parent indexes.
+- **Digest-addressed cache entries are not hash-verified** (M-SEC-5), which is why the
+  alias checks bypass the cache.
+
 ---
 
 ## Medium (open)
