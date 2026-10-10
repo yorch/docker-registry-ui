@@ -130,9 +130,49 @@ describe('confirm-delete-image', () => {
       await instance.deleteImages();
       assert.deepEqual(reg.deletes, []);
       assert.ok(reg.exists(amd.digest), 'child of app:latest deleted');
-      assert.match(notes[0].message, /referenced by index latest/);
+      // The index was not selected: do not steer the user into deleting it.
+      assert.match(notes[0].message, /part of index app:latest/);
+      assert.doesNotMatch(notes[0].message, /Delete the index first/);
       assert.equal(notes[0].isError, true);
       assert.equal(instance.state.deleting, false);
+    } finally {
+      await reg.close();
+    }
+  });
+
+  it('should suggest deleting the index only when the index is part of the selection', async () => {
+    const reg = await createFake();
+    try {
+      const amd = reg.image('amd64', '2020-01-01T00:00:00Z');
+      const index = reg.index([amd, reg.image('arm64', '2020-01-01T00:00:00Z')]);
+      reg.tag('latest', index);
+      reg.tag('amd64', amd);
+      const all = [
+        { name: 'app', tag: 'latest', contentDigest: index.digest },
+        { name: 'app', tag: 'amd64', contentDigest: amd.digest },
+      ];
+      const instance = mount({ registryUrl: reg.url, tags: all, toDelete: new Set([all[1], all[0]]) });
+      await instance.deleteImages();
+      assert.deepEqual(reg.deletes, []);
+      assert.match(notes[0].message, /referenced by index latest.*Delete the index first/);
+    } finally {
+      await reg.close();
+    }
+  });
+
+  it('should name every parent index, sorted, whatever order the walks finish in', async () => {
+    const reg = await createFake();
+    try {
+      const amd = reg.image('amd64', '2020-01-01T00:00:00Z');
+      const other = reg.image('arm64', '2020-01-01T00:00:00Z');
+      reg.tag('zeta', reg.index([amd, other]));
+      reg.tag('alpha', reg.index([amd]));
+      reg.tag('amd64', amd);
+      const all = [{ name: 'app', tag: 'amd64', contentDigest: amd.digest }];
+      const instance = mount({ registryUrl: reg.url, tags: all, toDelete: new Set(all) });
+      await instance.deleteImages();
+      assert.deepEqual(reg.deletes, []);
+      assert.match(notes[0].message, /part of index app:alpha, app:zeta/);
     } finally {
       await reg.close();
     }

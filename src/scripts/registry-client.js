@@ -19,6 +19,9 @@ export const MANIFEST_ACCEPT = [
 // a delete verification) alive forever.
 export const MAX_PAGES = 1000;
 
+// Nested index levels walkIndex follows before failing closed.
+export const MAX_INDEX_DEPTH = 8;
+
 /*
  * The Link header comes from the registry, but its target is still only a hint:
  * following an absolute link to another origin would send the registry
@@ -194,14 +197,14 @@ export class RegistryClient {
     };
   }
 
-  async allRepositories({ pageSize = 100, onProgress, isCancelled = () => false } = {}) {
+  async allRepositories({ pageSize = 100, onProgress, isCancelled = () => false, maxPages = MAX_PAGES } = {}) {
     const repositories = new Set();
     const visited = new Set();
     let next;
     let pages = 0;
     do {
       if (isCancelled()) break;
-      if (++pages > MAX_PAGES) throw new Error(`The repository catalogue has more than ${MAX_PAGES} pages`);
+      if (++pages > maxPages) throw new Error(`The repository catalogue has more than ${maxPages} pages`);
       const page = await this.catalogPage({ url: next, pageSize, visited });
       page.repositories.forEach((name) => repositories.add(name));
       next = page.next;
@@ -272,9 +275,13 @@ export class RegistryClient {
    * never mistakes a partly walked index for a fully walked one.
    *
    * Leaves are only fetched when `fetchLeaves` is set; descending needs just the
-   * nested indexes, recognised by their descriptor's media type.
+   * nested indexes, recognised by their descriptor's media type. Nesting deeper
+   * than MAX_INDEX_DEPTH throws rather than returning a partial walk.
    */
-  async walkIndex(repository, root, { noCache = false, fetchLeaves = false, visited = new Set() } = {}) {
+  async walkIndex(repository, root, { noCache = false, fetchLeaves = false, visited = new Set(), depth = 0 } = {}) {
+    if (depth > MAX_INDEX_DEPTH) {
+      throw new Error(`Index ${repository}@${root.digest} is nested more than ${MAX_INDEX_DEPTH} levels deep`);
+    }
     const references = new Set();
     const leaves = [];
     visited.add(root.digest);
@@ -287,7 +294,12 @@ export class RegistryClient {
         visited.add(descriptor.digest);
         const manifest = await this.manifest(repository, descriptor.digest, { noCache });
         if (isIndexManifest(manifest)) {
-          const nested = await this.walkIndex(repository, manifest, { noCache, fetchLeaves, visited });
+          const nested = await this.walkIndex(repository, manifest, {
+            noCache,
+            fetchLeaves,
+            visited,
+            depth: depth + 1,
+          });
           nested.references.forEach((digest) => references.add(digest));
           leaves.push(...nested.leaves);
         } else {
@@ -366,7 +378,7 @@ export class RegistryClient {
   /*
    * What a retention preview or tag-list delete must re-check, read past the
    * cache: `aliases` (digest -> tags now resolving to it) and `referenced`
-   * (digest -> the first index tag whose descendants include it).
+   * (digest -> the sorted index tags whose descendants include it).
    *
    * This is the guard between a preview and an irreversible delete:
    * `DELETE /manifests/<digest>` removes *every* tag resolving to that digest
@@ -407,17 +419,26 @@ export class RegistryClient {
         if (!isIndexManifest(manifest)) return;
         let walked;
         try {
-          walked = await this.walkIndex(repository, manifest, { noCache: true });
+          // fetchLeaves: every non-attestation child is fetched and classified by
+          // its body, as inspectTag does, rather than trusting the descriptor's
+          // declared mediaType (a nested index whose descriptor omits or
+          // mislabels it would otherwise leave its children unprotected). The
+          // extra GET per child per tagged index is the price of failing closed.
+          // noCache: digest-addressed cache entries are not hash-verified.
+          walked = await this.walkIndex(repository, manifest, { noCache: true, fetchLeaves: true });
         } catch (_error) {
           throw new Error(
             `Could not read the contents of index ${repository}:${tags[index]} to verify the preview; nothing was deleted`,
           );
         }
         walked.references.forEach((digest) => {
-          if (!referenced.has(digest)) referenced.set(digest, tags[index]);
+          referenced.set(digest, [...(referenced.get(digest) || []), tags[index]]);
         });
       }),
     );
+    // Every parent index tag, in a stable order: the walks finish in whatever
+    // order the registry answers them.
+    referenced.forEach((parents, digest) => referenced.set(digest, [...new Set(parents)].sort()));
     return { aliases, referenced };
   }
 

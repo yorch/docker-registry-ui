@@ -406,7 +406,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
             repositoryNames = (JSON.parse(this.responseText).repositories || []).sort();
             tree = self.groupByNamespace(repositoryNames);
             nRepositories = repositoryNames.length;
-            nextCatalogUrl = parseNextLink(this.getResponseHeader('Link'), catalogUrl);
+            nextCatalogUrl = parseNextLink(this.getResponseHeader('Link'), catalogUrl, props.registryUrl);
           } else if (this.status === 404) {
             self.props.onNotify({ code: 'CATALOG_NOT_FOUND', url: catalogUrl }, true);
           } else if (this.status === 400) {

@@ -49,6 +49,12 @@ export const createFake = async ({ pageSize, failBlobs = new Set() } = {}) => {
       manifests.set(d, { body, mediaType });
       return { digest: d, mediaType, size: body.length };
     },
+    // Stores an arbitrary manifest body under a chosen digest, which a
+    // content-addressed index() cannot: self-referencing and cyclic indexes.
+    raw(digest, body, mediaType = OCI_I) {
+      manifests.set(digest, { body: JSON.stringify({ schemaVersion: 2, mediaType, ...body }), mediaType });
+      return { digest, mediaType };
+    },
     tag(name, m) {
       tags.set(name, m.digest);
     },

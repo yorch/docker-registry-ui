@@ -420,6 +420,7 @@
         if (!this.state.deleting) this.update({ confirming: false });
       },
       async executeDelete() {
+        if (this.state.deleting) return;
         const candidates = this.selectedCandidates();
         if (!candidates.length || !this.props.isImageRemoveActivated) return;
         if (this.state.plan?.registryUrl !== this.props.registryUrl) {
@@ -500,9 +501,9 @@
         if (current.length !== preview.length || current.some((tag, index) => tag !== preview[index])) {
           throw new Error('Tags changed since the preview; re-analyze before deleting');
         }
-        const parent = referenced.get(candidate.digest);
-        if (parent !== undefined) {
-          throw new Error(`This digest is referenced by index ${parent}; deleting it would break that index`);
+        const parents = referenced.get(candidate.digest);
+        if (parents?.length) {
+          throw new Error(`This digest is referenced by index ${parents.join(', ')}; deleting it would break that index`);
         }
       },
       formatDate(value) {

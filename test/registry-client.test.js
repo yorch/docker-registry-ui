@@ -1,8 +1,15 @@
 import assert from 'node:assert';
 import { createServer } from 'node:http';
 import { createMockRegistry } from '../dev/mock-registry/server.js';
-import { newestDate, parseNextLink, RegistryClient, toRegistryError } from '../src/scripts/registry-client.js';
+import {
+  MAX_INDEX_DEPTH,
+  newestDate,
+  parseNextLink,
+  RegistryClient,
+  toRegistryError,
+} from '../src/scripts/registry-client.js';
 import { MAX_CONCURRENT_REQUESTS, requestPool } from '../src/scripts/request-pool.js';
+import { createFake, OCI_I, OCI_M } from './support/fake-registry.js';
 
 describe('registry client', () => {
   let registry;
@@ -268,6 +275,160 @@ describe('registry client', () => {
       } finally {
         await server.close();
       }
+    });
+  });
+
+  describe('fail-closed guards', () => {
+    let reg;
+    afterEach(async () => {
+      sessionStorage.clear();
+      await reg?.close();
+    });
+
+    const fakeDigest = (n) => `sha256:${String(n).padStart(64, '0')}`;
+    const ATTESTATION = { 'vnd.docker.reference.type': 'attestation-manifest' };
+
+    const withAttestation = async () => {
+      reg = await createFake();
+      const child = reg.image('amd64', '2020-01-01T00:00:00Z');
+      // The attestation manifest itself is never stored: it must be recorded from
+      // the descriptor alone, without being fetched.
+      const attestation = fakeDigest(777);
+      const index = reg.raw(fakeDigest(1), {
+        manifests: [
+          {
+            mediaType: child.mediaType,
+            digest: child.digest,
+            size: child.size,
+            platform: { os: 'linux', architecture: 'amd64' },
+          },
+          {
+            mediaType: OCI_M,
+            digest: attestation,
+            size: 1,
+            platform: { os: 'unknown', architecture: 'unknown' },
+            annotations: ATTESTATION,
+          },
+        ],
+      });
+      reg.tag('latest', index);
+      return { attestation, child };
+    };
+
+    it('keeps attestation descriptor digests in inspectTag references', async () => {
+      const { attestation, child } = await withAttestation();
+      const client = new RegistryClient({ registryUrl: reg.url, onAuthentication: () => {} });
+      const record = await client.inspectTag('app', 'latest');
+      assert.ok(record.references.includes(attestation), 'attestation digest missing from references');
+      assert.ok(record.references.includes(child.digest));
+      assert.equal(record.platforms.length, 1, 'the attestation is not a platform');
+    });
+
+    it('keeps attestation descriptor digests in currentAliases referenced', async () => {
+      const { attestation } = await withAttestation();
+      const client = new RegistryClient({ registryUrl: reg.url, onAuthentication: () => {} });
+      const { referenced } = await client.currentAliases('app');
+      assert.deepEqual(referenced.get(attestation), ['latest']);
+    });
+
+    it('currentAliases throws, rather than swallowing, when a nested index walk fails', async () => {
+      reg = await createFake();
+      const missing = fakeDigest(404);
+      reg.tag('latest', reg.raw(fakeDigest(2), { manifests: [{ mediaType: OCI_M, digest: missing, size: 1 }] }));
+      const client = new RegistryClient({ registryUrl: reg.url, onAuthentication: () => {} });
+      await assert.rejects(
+        () => client.currentAliases('app'),
+        /Could not read the contents of index app:latest.*nothing was deleted/,
+      );
+    });
+
+    describe('catalogue paging', () => {
+      const serveCatalog = async (link) => {
+        const server = createServer((req, res) => {
+          const page = Number(new URL(req.url, 'http://x').searchParams.get('page') || 0);
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Expose-Headers': 'Link',
+            Link: link(page),
+          });
+          res.end(JSON.stringify({ repositories: [`repo${page}`] }));
+        });
+        await new Promise((resolve) => server.listen(0, resolve));
+        return { url: `http://localhost:${server.address().port}`, close: () => new Promise((r) => server.close(r)) };
+      };
+
+      it('allRepositories stops at the page cap instead of looping forever', async () => {
+        // A registry that never stops advertising a distinct next page.
+        const server = await serveCatalog((page) => `</v2/_catalog?page=${page + 1}>; rel="next"`);
+        try {
+          const client = new RegistryClient({ registryUrl: server.url, onAuthentication: () => {} });
+          await assert.rejects(() => client.allRepositories({ maxPages: 3 }), /more than 3 pages/);
+        } finally {
+          await server.close();
+        }
+      });
+
+      it('catalogPage throws when the next page could not be followed (off-origin Link)', async () => {
+        const server = await serveCatalog(() => '<https://evil.example/v2/_catalog?last=a>; rel="next"');
+        try {
+          const client = new RegistryClient({ registryUrl: server.url, onAuthentication: () => {} });
+          await assert.rejects(() => client.catalogPage(), /next page that could not be followed/);
+          await assert.rejects(() => client.allRepositories(), /could not be followed/);
+        } finally {
+          await server.close();
+        }
+      });
+    });
+
+    describe('walkIndex', () => {
+      it('terminates on an index that lists itself', async () => {
+        reg = await createFake();
+        const self = fakeDigest(10);
+        reg.tag('latest', reg.raw(self, { manifests: [{ mediaType: OCI_I, digest: self, size: 1 }] }));
+        const client = new RegistryClient({ registryUrl: reg.url, onAuthentication: () => {} });
+        const root = await client.manifest('app', 'latest');
+        const { references } = await client.walkIndex('app', root, { fetchLeaves: true });
+        assert.deepEqual([...references], [self]);
+      });
+
+      it('terminates on a two-index cycle', async () => {
+        reg = await createFake();
+        const [a, b] = [fakeDigest(11), fakeDigest(12)];
+        reg.tag('latest', reg.raw(a, { manifests: [{ mediaType: OCI_I, digest: b, size: 1 }] }));
+        reg.raw(b, { manifests: [{ mediaType: OCI_I, digest: a, size: 1 }] });
+        const client = new RegistryClient({ registryUrl: reg.url, onAuthentication: () => {} });
+        const { referenced } = await client.currentAliases('app');
+        assert.deepEqual([...referenced.keys()].sort(), [a, b]);
+      });
+
+      const chain = (levels) => {
+        // levels indexes deep: 1 -> 2 -> ... -> levels -> one real image.
+        const image = reg.image('amd64', '2020-01-01T00:00:00Z');
+        let child = image;
+        for (let level = levels; level >= 1; level--) {
+          child = reg.raw(fakeDigest(100 + level), {
+            manifests: [{ mediaType: child.mediaType, digest: child.digest, size: 1 }],
+          });
+        }
+        return child;
+      };
+
+      it('follows nesting up to the depth limit', async () => {
+        reg = await createFake();
+        reg.tag('latest', chain(MAX_INDEX_DEPTH));
+        const client = new RegistryClient({ registryUrl: reg.url, onAuthentication: () => {} });
+        const { referenced } = await client.currentAliases('app');
+        assert.equal(referenced.size, MAX_INDEX_DEPTH);
+      });
+
+      it('fails closed when indexes nest deeper than the limit', async () => {
+        reg = await createFake();
+        reg.tag('latest', chain(MAX_INDEX_DEPTH + 2));
+        const client = new RegistryClient({ registryUrl: reg.url, onAuthentication: () => {} });
+        await assert.rejects(() => client.inspectTag('app', 'latest'), /nested more than 8 levels/);
+        await assert.rejects(() => client.currentAliases('app'), /nothing was deleted/);
+      });
     });
   });
 });

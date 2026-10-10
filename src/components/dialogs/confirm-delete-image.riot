@@ -126,10 +126,19 @@
             return undefined;
           }
           for (const entry of plan.filter((candidate) => candidate.name === repositories[index])) {
-            const parent = result.value.referenced.get(entry.digest);
-            if (parent !== undefined) {
+            const parents = result.value.referenced.get(entry.digest) || [];
+            if (parents.length) {
+              const label = `${entry.name}:${entry.images[0].tag}`;
+              const list = parents.map((parent) => `${entry.name}:${parent}`).join(', ');
+              // Only point at the index when the user chose it; otherwise deleting it
+              // would be advice to break every platform of an image they kept.
+              const selectedParents = parents.filter((parent) =>
+                selected.some((image) => image.name === entry.name && image.tag === parent),
+              );
               onNotify(
-                `${entry.name}:${entry.images[0].tag} is referenced by index ${parent}; nothing was deleted. Delete the index first.`,
+                selectedParents.length
+                  ? `${label} is referenced by index ${parents.join(', ')}; nothing was deleted. Delete the index first.`
+                  : `${label} is part of index ${list}; nothing was deleted, and deleting it would break that index.`,
                 true,
               );
               return undefined;

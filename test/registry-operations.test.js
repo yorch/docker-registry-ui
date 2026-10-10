@@ -42,7 +42,7 @@ describe('retention delete guard', () => {
 
   it('should refuse a digest that an index references, even when its tags are unchanged', () => {
     const aliases = new Map([['sha256:abc', ['v1']]]);
-    const referenced = new Map([['sha256:abc', 'latest']]);
+    const referenced = new Map([['sha256:abc', ['latest']]]);
     assert.throws(() => check(aliases, candidate(['v1']), referenced), /referenced by index latest/);
   });
 

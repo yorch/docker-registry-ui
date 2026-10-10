@@ -188,4 +188,18 @@ describe('retention protects index children', () => {
     assert.ok(reg.exists(amd.digest), 'child of the new app:latest index was deleted');
     assert.ok(reg.deletes.length === 0, `unexpected DELETEs: ${reg.deletes}`);
   });
+
+  it('ignores a second executeDelete while one is running: no duplicate DELETEs', async () => {
+    reg = await createFake();
+    const first = reg.image('amd64', OLD);
+    const second = reg.image('arm64', OLD);
+    reg.tag('one', first);
+    reg.tag('two', second);
+    const instance = mount();
+    await instance.scan();
+    preview(instance, 'nothing-matches-this');
+    instance.selectAll();
+    await Promise.all([instance.executeDelete(), instance.executeDelete()]);
+    assert.deepEqual(reg.deletes.slice().sort(), [first.digest, second.digest].sort());
+  });
 });
