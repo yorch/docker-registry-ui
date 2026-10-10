@@ -12,7 +12,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-FROM node:24-alpine AS build
+# The bundle is plain JS/CSS, so build it natively on the builder's platform instead of
+# under QEMU for every target architecture.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -30,7 +32,7 @@ COPY src/ ./src/
 ARG COMMIT_HASH
 RUN npm run build
 
-FROM nginx:latest
+FROM nginx:1.31-trixie
 
 LABEL maintainer="Jorge Barnaby (yorch)"
 LABEL org.opencontainers.image.title="Registry Explorer"
@@ -42,7 +44,6 @@ WORKDIR /usr/share/nginx/html/
 
 ENV NGINX_PROXY_HEADER_Host '$http_host'
 ENV NGINX_LISTEN_PORT '80'
-ENV SHOW_CATALOG_NB_TAGS 'false'
 
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY bin/90-docker-registry-ui.sh /docker-entrypoint.d/90-docker-registry-ui.sh
