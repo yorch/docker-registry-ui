@@ -454,7 +454,14 @@
               snapshot.deletes >= RESNAPSHOT_EVERY_DELETES ||
               Date.now() - snapshot.takenAt >= RESNAPSHOT_AFTER_MS
             ) {
-              snapshot = { check: client.currentAliases(repository), takenAt: Date.now(), deletes: 0 };
+              // takenAt is stamped when the read finishes, not when it starts: a
+              // snapshot that itself takes 30s would otherwise be stale on arrival.
+              const fresh = { takenAt: Date.now(), deletes: 0 };
+              fresh.check = client.currentAliases(repository).then((result) => {
+                fresh.takenAt = Date.now();
+                return result;
+              });
+              snapshot = fresh;
               snapshots.set(repository, snapshot);
             }
             return snapshot;

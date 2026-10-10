@@ -178,7 +178,9 @@ export class Http {
       .digest('SHA-256', new TextEncoder().encode(entry.responseText))
       .then((buffer) => {
         const actual = `sha256:${Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
-        if (actual === expected) setCache(method, url, entry, Date.now(), variant);
+        // The header is not covered by the hash, so store the digest that was.
+        if (actual === expected)
+          setCache(method, url, { ...entry, dockerContentdigest: expected }, Date.now(), variant);
       })
       .catch(() => {});
   }

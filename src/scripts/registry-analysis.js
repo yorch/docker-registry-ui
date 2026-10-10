@@ -22,8 +22,9 @@ const reliableTime = (created) => {
 const timeOf = (record) => reliableTime(record.created) ?? Number.MIN_SAFE_INTEGER;
 
 // cosign stores signatures, attestations and SBOMs as tags named after the
-// digest they describe: sha256-<hex>.sig, .att, .sbom.
-const COSIGN_TAG_REGEX = /^sha256-[a-f0-9]{64}\.(sig|att|sbom)$/;
+// digest they describe: sha256-<hex>.sig, .att, .sbom. The OCI 1.1 referrers
+// fallback uses the bare sha256-<hex> for an index of signatures/SBOMs.
+const COSIGN_TAG_REGEX = /^sha256-[a-f0-9]{64}(\.(sig|att|sbom))?$/;
 
 const byNewest = (left, right) => timeOf(right) - timeOf(left);
 
@@ -90,20 +91,22 @@ export const planRetention = (
   const candidates = [];
   const skipped = [];
   const byRepository = new Map();
+  const cosignRecords = new Set();
   records.forEach((record) => {
     if (!validPolicy) {
       skipped.push({ repository: record.repository, tags: [record.tag], reason: 'Invalid retention policy' });
       return;
     }
     if (!deleteCosignTags && COSIGN_TAG_REGEX.test(record.tag)) {
-      // Not ranked either: a protected tag must not use up a keep-newest slot.
+      // Not ranked, but still kept in the repository's records below: an index
+      // under a cosign-shaped name still references children that stay protected.
+      cosignRecords.add(record);
       skipped.push({
         repository: record.repository,
         digest: record.digest,
         tags: [record.tag],
         reason: `Cosign signature/attestation tag: ${record.tag}`,
       });
-      return;
     }
     const items = byRepository.get(record.repository) || [];
     items.push(record);
@@ -111,9 +114,17 @@ export const planRetention = (
   });
 
   byRepository.forEach((repositoryRecords, repository) => {
-    const sorted = [...repositoryRecords].sort(byNewest);
-    const byDigest = new Map();
+    const sorted = repositoryRecords.filter((record) => !cosignRecords.has(record)).sort(byNewest);
     const verdicts = [];
+    const referenced = new Map();
+    repositoryRecords.forEach((record) => {
+      if (!record.isIndex) return;
+      const digests = [...(record.references || []), ...(record.platforms || []).map((platform) => platform.digest)];
+      digests.forEach((digest) => {
+        if (digest && digest !== record.digest && !referenced.has(digest)) referenced.set(digest, record.tag);
+      });
+    });
+    const byDigest = new Map();
     sorted.forEach((record) => {
       const key = record.digest;
       if (!key) {
@@ -126,11 +137,17 @@ export const planRetention = (
     });
     // Distinct digests, not tags: `1`, `1.0` and `1.0.0` on one image are one
     // image. Map preserves the newest-first insertion order of `sorted`.
-    // Digests with no trustworthy date sort last and are protected on their own;
-    // they must not use up a slot either.
+    // Digests already protected on their own (an index references them, a pattern
+    // matches, or no trustworthy date) must not use up a slot either: a tagged
+    // platform child ties with its index and would otherwise displace the release.
     const keptDigests = new Set(
       [...byDigest.entries()]
-        .filter(([, aliases]) => aliases.every((record) => reliableTime(record.created) !== undefined))
+        .filter(
+          ([digest, aliases]) =>
+            !referenced.has(digest) &&
+            !aliases.some((record) => patterns.some((pattern) => pattern.test(record.tag))) &&
+            aliases.every((record) => reliableTime(record.created) !== undefined),
+        )
         .map(([digest]) => digest)
         .slice(0, Math.max(0, keepNewest)),
     );
@@ -180,14 +197,6 @@ export const planRetention = (
      * `references` is the full descendant set, attestations and nested indexes
      * included; `platforms` is unioned in for records that only carry that.
      */
-    const referenced = new Map();
-    repositoryRecords.forEach((record) => {
-      if (!record.isIndex) return;
-      const digests = [...(record.references || []), ...(record.platforms || []).map((platform) => platform.digest)];
-      digests.forEach((digest) => {
-        if (digest && digest !== record.digest && !referenced.has(digest)) referenced.set(digest, record.tag);
-      });
-    });
     verdicts.forEach((candidate) => {
       const parent = referenced.get(candidate.digest);
       if (unverified.has(repository)) {
