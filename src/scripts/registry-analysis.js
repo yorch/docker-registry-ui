@@ -6,10 +6,24 @@
  * the damage was to its neighbours. A finite sentinel sorts it last and keeps
  * the ordering total (subtracting two sentinels gives 0, not NaN).
  */
-const timeOf = (record) => {
-  const time = new Date(record.created ?? 0).getTime();
-  return Number.isNaN(time) ? Number.MIN_SAFE_INTEGER : time;
+/*
+ * Reproducible builds (SOURCE_DATE_EPOCH=0: ko, rules_oci, nix) stamp 1970 or
+ * 0001-01-01. Those say nothing about when the image was made, and they all tie,
+ * so ordering by them is arbitrary. Nothing real predates this cutoff.
+ */
+const EARLIEST_TRUSTED_MS = Date.UTC(2000, 0, 1);
+
+const reliableTime = (created) => {
+  if (!created) return undefined;
+  const time = new Date(created).getTime();
+  return Number.isNaN(time) || time < EARLIEST_TRUSTED_MS ? undefined : time;
 };
+
+const timeOf = (record) => reliableTime(record.created) ?? Number.MIN_SAFE_INTEGER;
+
+// cosign stores signatures, attestations and SBOMs as tags named after the
+// digest they describe: sha256-<hex>.sig, .att, .sbom.
+const COSIGN_TAG_REGEX = /^sha256-[a-f0-9]{64}\.(sig|att|sbom)$/;
 
 const byNewest = (left, right) => timeOf(right) - timeOf(left);
 
@@ -63,17 +77,34 @@ export const summarizeRegistry = (records, repositoryNames = [], unreadableRepos
  */
 export const planRetention = (
   records,
-  { olderThanDays = 90, keepNewest = 5, protectedPatterns = ['latest', 'stable'] } = {},
+  { olderThanDays = 90, keepNewest = 5, protectedPatterns = ['latest', 'stable'], deleteCosignTags = false } = {},
   now = new Date(),
   unverifiedRepositories = [],
 ) => {
   const unverified = new Set(unverifiedRepositories);
-  const cutoff = now.getTime() - Math.max(0, olderThanDays) * 86400000;
+  // A NaN here made every comparison below false, so nothing counted as recent
+  // or kept and everything became a candidate. Refuse the whole plan instead.
+  const validPolicy = Number.isFinite(olderThanDays) && Number.isFinite(keepNewest);
+  const cutoff = now.getTime() - (validPolicy ? Math.max(0, olderThanDays) : 0) * 86400000;
   const patterns = compilePatterns(protectedPatterns);
   const candidates = [];
   const skipped = [];
   const byRepository = new Map();
   records.forEach((record) => {
+    if (!validPolicy) {
+      skipped.push({ repository: record.repository, tags: [record.tag], reason: 'Invalid retention policy' });
+      return;
+    }
+    if (!deleteCosignTags && COSIGN_TAG_REGEX.test(record.tag)) {
+      // Not ranked either: a protected tag must not use up a keep-newest slot.
+      skipped.push({
+        repository: record.repository,
+        digest: record.digest,
+        tags: [record.tag],
+        reason: `Cosign signature/attestation tag: ${record.tag}`,
+      });
+      return;
+    }
     const items = byRepository.get(record.repository) || [];
     items.push(record);
     byRepository.set(record.repository, items);
@@ -81,7 +112,6 @@ export const planRetention = (
 
   byRepository.forEach((repositoryRecords, repository) => {
     const sorted = [...repositoryRecords].sort(byNewest);
-    const keptTags = new Set(sorted.slice(0, Math.max(0, keepNewest)).map((record) => record.tag));
     const byDigest = new Map();
     const verdicts = [];
     sorted.forEach((record) => {
@@ -94,11 +124,21 @@ export const planRetention = (
       aliases.push(record);
       byDigest.set(key, aliases);
     });
+    // Distinct digests, not tags: `1`, `1.0` and `1.0.0` on one image are one
+    // image. Map preserves the newest-first insertion order of `sorted`.
+    // Digests with no trustworthy date sort last and are protected on their own;
+    // they must not use up a slot either.
+    const keptDigests = new Set(
+      [...byDigest.entries()]
+        .filter(([, aliases]) => aliases.every((record) => reliableTime(record.created) !== undefined))
+        .map(([digest]) => digest)
+        .slice(0, Math.max(0, keepNewest)),
+    );
     byDigest.forEach((aliases, digest) => {
       const protectedTag = aliases.find((record) => patterns.some((pattern) => pattern.test(record.tag)));
-      const newestTag = aliases.find((record) => keptTags.has(record.tag));
-      const missingDate = aliases.find((record) => !record.created || Number.isNaN(new Date(record.created).getTime()));
-      const recentTag = aliases.find((record) => new Date(record.created).getTime() >= cutoff);
+      const newestTag = keptDigests.has(digest) ? aliases[0] : undefined;
+      const missingDate = aliases.find((record) => reliableTime(record.created) === undefined);
+      const recentTag = aliases.find((record) => reliableTime(record.created) >= cutoff);
       const blocked = protectedTag || newestTag || missingDate || recentTag;
       if (blocked) {
         skipped.push({
@@ -110,7 +150,7 @@ export const planRetention = (
             : newestTag
               ? `Kept among newest: ${newestTag.tag}`
               : missingDate
-                ? `Creation date unavailable: ${missingDate.tag}`
+                ? `No reliable build date: ${missingDate.tag}`
                 : `Newer than cutoff: ${recentTag.tag}`,
         });
         return;
