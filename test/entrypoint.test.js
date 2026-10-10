@@ -197,17 +197,40 @@ describe('container entrypoint', function () {
       assert.match(r.stderr, /NGINX_PROXY_HEADER_X_Bad/);
     });
 
-    it('accepts hyphens in header names from the environment and from .env alike', () => {
+    // dash (Debian's /bin/sh) drops variables whose names are not valid shell
+    // identifiers before the script runs; busybox ash (Alpine) keeps them. The
+    // environment half of these tests can only hold where the shell keeps them.
+    const shellKeepsOddNames = spawnSync('sh', ['-c', 'env'], {
+      env: { 'A-B': '1' },
+      encoding: 'utf8',
+    }).stdout.includes('A-B=1');
+
+    it('accepts hyphens in header names from .env', () => {
       const t = setup();
       writeFileSync(join(t.nginx, '.env'), 'NGINX_PROXY_HEADER_X-From-File=two\n');
-      const r = t.run({ ...proxied, 'NGINX_PROXY_HEADER_X-Forwarded-Proto': 'https' });
+      const r = t.run({ ...proxied });
       assert.strictEqual(r.status, 0, r.stderr);
-      const conf = readFileSync(t.conf, 'utf8');
-      assert.match(conf, /proxy_set_header X-Forwarded-Proto "https";/);
-      assert.match(conf, /proxy_set_header X-From-File "two";/);
+      assert.match(readFileSync(t.conf, 'utf8'), /proxy_set_header X-From-File "two";/);
     });
 
-    it('fails the same way for an invalid name from the environment as from .env', () => {
+    it('accepts hyphens in header names from the environment where the shell keeps them', function () {
+      if (!shellKeepsOddNames) this.skip();
+      const t = setup();
+      const r = t.run({ ...proxied, 'NGINX_PROXY_HEADER_X-Forwarded-Proto': 'https' });
+      assert.strictEqual(r.status, 0, r.stderr);
+      assert.match(readFileSync(t.conf, 'utf8'), /proxy_set_header X-Forwarded-Proto "https";/);
+    });
+
+    it('rejects an invalid header name from .env', () => {
+      const t = setup();
+      writeFileSync(join(t.nginx, '.env'), 'NGINX_PROXY_HEADER_X.Bad=v\n');
+      const r = t.run({ ...proxied });
+      assert.notStrictEqual(r.status, 0);
+      assert.match(r.stderr, /invalid variable name/);
+    });
+
+    it('rejects an invalid header name from the environment where the shell keeps it', function () {
+      if (!shellKeepsOddNames) this.skip();
       const t = setup();
       const r = t.run({ ...proxied, 'NGINX_PROXY_HEADER_X.Bad': 'v' });
       assert.notStrictEqual(r.status, 0);
