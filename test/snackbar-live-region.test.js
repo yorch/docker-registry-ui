@@ -16,7 +16,8 @@ const mount = (props) => {
   return component(AppSnackbar)(root, props);
 };
 const pending = () => [...timers.values()].filter((t) => t.delay === 4000);
-const fire = (el, type) => el.dispatchEvent(new window.Event(type, { bubbles: type === 'focusin' || type === 'focusout' }));
+const fire = (el, type) =>
+  el.dispatchEvent(new window.Event(type, { bubbles: type === 'focusin' || type === 'focusout' }));
 
 describe('snackbar live region', () => {
   beforeEach(() => {

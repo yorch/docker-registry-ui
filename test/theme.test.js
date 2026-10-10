@@ -52,7 +52,14 @@ describe('theme', () => {
   it('should have a style rule reading every documented header and footer token', () => {
     // THEME_HEADER_* / THEME_FOOTER_* are documented; each has to be read by a rule.
     const layout = readFileSync(new URL('../src/styles/layout.scss', import.meta.url), 'utf8');
-    for (const name of ['header-text', 'header-accent-text', 'header-background', 'footer-text', 'footer-neutral-text', 'footer-background']) {
+    for (const name of [
+      'header-text',
+      'header-accent-text',
+      'header-background',
+      'footer-text',
+      'footer-neutral-text',
+      'footer-background',
+    ]) {
       assert.ok(layout.includes(`var(--${name},`), `--${name} is not read by layout.scss`);
     }
   });

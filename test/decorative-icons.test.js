@@ -5,7 +5,7 @@
  * tree; the control around it carries the accessible name.
  */
 import assert from 'node:assert';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const riotFiles = (dir) =>
