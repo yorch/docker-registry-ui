@@ -36,11 +36,18 @@ export const parseNextLink = (header, baseUrl, registryUrl) => {
   const match = part && /<([^>]+)>/.exec(part);
   if (!match) return undefined;
   try {
-    const target = new URL(match[1], baseUrl);
+    let target = new URL(match[1], baseUrl);
     if (target.origin !== new URL(baseUrl).origin) return undefined;
     if (registryUrl) {
       const registry = new URL(registryUrl);
       const prefix = registry.pathname.replace(/\/$/, '');
+      // A registry behind a path prefix does not know it is mounted there, so its
+      // root-relative `/v2/...` link would resolve past the prefix. Re-root only
+      // that exact shape (one leading slash, an API path) under the prefix; an
+      // absolute URL or a link that already carries the prefix is taken as given.
+      if (prefix && /^\/v2\//.test(match[1]) && !target.pathname.startsWith(`${prefix}/`)) {
+        target = new URL(`${prefix}${target.pathname}${target.search}`, registry.origin);
+      }
       if (target.origin !== registry.origin) return undefined;
       if (prefix && target.pathname !== prefix && !target.pathname.startsWith(`${prefix}/`)) return undefined;
     }
