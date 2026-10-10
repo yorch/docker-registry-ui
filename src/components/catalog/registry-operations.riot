@@ -211,6 +211,33 @@
         selected: new Set(),
         policy: { olderThanDays: 90, keepNewest: 5, protectedPatterns: 'latest, stable' },
       },
+      onBeforeMount(props) {
+        this.registryUrl = props.registryUrl;
+      },
+      /*
+       * The component stays mounted when the user switches registry, so a scan
+       * or plan from the old one would otherwise sit on screen and, worse, be
+       * executed against the new one. Props and state are already merged here,
+       * and this runs before the render, so mutating state in place is picked
+       * up without a second update (update() from onUpdated would not render).
+       * Bumping the generation makes an in-flight scan stop feeding results.
+       */
+      onBeforeUpdate(props) {
+        if (props.registryUrl === this.registryUrl) return;
+        this.registryUrl = props.registryUrl;
+        this.generation = (this.generation || 0) + 1;
+        this.scanRegistryUrl = undefined;
+        Object.assign(this.state, {
+          scanning: false,
+          confirming: false,
+          summary: undefined,
+          plan: undefined,
+          records: [],
+          scanErrors: [],
+          deleteFailures: [],
+          selected: new Set(),
+        });
+      },
       toggle() {
         this.update({ expanded: !this.state.expanded });
       },
@@ -224,6 +251,9 @@
       async scan() {
         const generation = (this.generation || 0) + 1;
         this.generation = generation;
+        // The inventory below describes this registry and no other; the plan
+        // built from it carries the URL so executeDelete can check it.
+        this.scanRegistryUrl = this.props.registryUrl;
         this.update({
           scanning: true,
           summary: undefined,
@@ -336,7 +366,7 @@
             .map((value) => value.trim())
             .filter(Boolean),
         };
-        const plan = planRetention(this.state.records, policy);
+        const plan = { ...planRetention(this.state.records, policy), registryUrl: this.scanRegistryUrl };
         // A preview opens with nothing selected. Pre-checking every candidate
         // would put a one-click path to bulk deletion behind a screen whose
         // purpose is to be read first; Select All is one click away for anyone
@@ -385,6 +415,12 @@
       async executeDelete() {
         const candidates = this.selectedCandidates();
         if (!candidates.length || !this.props.isImageRemoveActivated) return;
+        if (this.state.plan?.registryUrl !== this.props.registryUrl) {
+          const message = 'The registry changed since this plan was created; re-analyze before deleting';
+          this.update({ confirming: false, deleteFailures: [message] });
+          this.props.onNotify(message, true);
+          return;
+        }
         this.update({ deleting: true, deleteFailures: [] });
         const client = this.client();
         const failures = [];

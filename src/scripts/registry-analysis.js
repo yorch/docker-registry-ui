@@ -75,9 +75,12 @@ export const planRetention = (
     const sorted = [...repositoryRecords].sort(byNewest);
     const keptTags = new Set(sorted.slice(0, Math.max(0, keepNewest)).map((record) => record.tag));
     const byDigest = new Map();
+    const keptRecords = [];
+    const verdicts = [];
     sorted.forEach((record) => {
       const key = record.digest;
       if (!key) {
+        keptRecords.push(record);
         skipped.push({ repository, tags: [record.tag], reason: 'Digest unavailable' });
         return;
       }
@@ -92,6 +95,7 @@ export const planRetention = (
       const recentTag = aliases.find((record) => new Date(record.created).getTime() >= cutoff);
       const blocked = protectedTag || newestTag || missingDate || recentTag;
       if (blocked) {
+        keptRecords.push(...aliases);
         skipped.push({
           repository,
           digest,
@@ -106,7 +110,7 @@ export const planRetention = (
         });
         return;
       }
-      candidates.push({
+      verdicts.push({
         repository,
         digest,
         tags: aliases.map((record) => record.tag),
@@ -118,6 +122,37 @@ export const planRetention = (
         created: aliases[0].created,
         size: Math.max(...aliases.map((record) => Number(record.size) || 0)),
       });
+    });
+
+    /*
+     * Deleting a manifest breaks every index that references it, so a digest a
+     * kept index points at is not ours to delete even when its own tag
+     * (app:1.0-amd64) is old and unprotected. Only indexes that survive count:
+     * kept records here include ones skipped for a missing digest or date,
+     * whose fate is unknown. When the referencing index is itself a candidate
+     * it will be deleted too, so it protects nothing; its children are then
+     * judged on their own merits, and are protected only if some other kept
+     * index references them.
+     */
+    const referenced = new Map();
+    keptRecords.forEach((record) => {
+      if (!record.isIndex) return;
+      (record.platforms || []).forEach((platform) => {
+        if (platform.digest && platform.digest !== record.digest && !referenced.has(platform.digest)) {
+          referenced.set(platform.digest, record.tag);
+        }
+      });
+    });
+    verdicts.forEach((candidate) => {
+      const parent = referenced.get(candidate.digest);
+      if (parent === undefined) candidates.push(candidate);
+      else
+        skipped.push({
+          repository,
+          digest: candidate.digest,
+          tags: candidate.tags,
+          reason: `Referenced by index ${parent}`,
+        });
     });
   });
   return { candidates, skipped, cutoff: new Date(cutoff).toISOString() };
