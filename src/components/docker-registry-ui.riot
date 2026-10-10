@@ -19,7 +19,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <div class="app-main">
       <header class="topbar">
         <a class="brand" href="{ router.home() }" title="{ state.title }">
-          <span class="brand-icon"><i class="material-icons">view_in_ar</i></span>
+          <span class="brand-icon"><i class="material-icons" aria-hidden="true">view_in_ar</i></span>
           <span class="brand-name">{ state.title }</span>
         </a>
         <breadcrumbs></breadcrumbs>
@@ -55,7 +55,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           title="Toggle light/dark theme"
           type="button"
         >
-          <i class="material-icons">{ state.themeSwitch ? 'light_mode' : 'dark_mode' }</i>
+          <i class="material-icons" aria-hidden="true">{ state.themeSwitch ? 'light_mode' : 'dark_mode' }</i>
         </button>
       </header>
 

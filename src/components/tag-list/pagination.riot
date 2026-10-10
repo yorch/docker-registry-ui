@@ -8,7 +8,7 @@
       aria-current="{ p.current ? 'page' : null }"
       type="button"
     >
-      <i if="{ p.icon }" class="material-icons">{ p.icon }</i>
+      <i if="{ p.icon }" class="material-icons" aria-hidden="true">{ p.icon }</i>
       <template if="{ !p.icon }">{ p.page }</template>
     </button>
   </div>
