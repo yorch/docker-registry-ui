@@ -20,8 +20,8 @@ export const createFake = async ({ pageSize, failBlobs = new Set() } = {}) => {
   const deletes = [];
   const api = {
     deletes,
-    image(label, created, mediaType = OCI_M) {
-      const cfg = JSON.stringify({ created, os: 'linux', architecture: label });
+    image(label, created, mediaType = OCI_M, extraConfig = {}) {
+      const cfg = JSON.stringify({ created, os: 'linux', architecture: label, ...extraConfig });
       const cd = sha(cfg + label);
       blobs.set(cd, cfg);
       const body = JSON.stringify({

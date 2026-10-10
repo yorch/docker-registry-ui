@@ -198,6 +198,10 @@
     import { bytesToSize } from '../../scripts/utils';
 
     const BATCH_SIZE = 12;
+    // The alias snapshot is re-taken after this many deletes or this long, so the
+    // window in which a pushed tag goes unseen does not grow with the run.
+    const RESNAPSHOT_EVERY_DELETES = 25;
+    const RESNAPSHOT_AFTER_MS = 30000;
 
     export default {
       state: {
@@ -439,21 +443,41 @@
           // One alias snapshot per repository rather than per candidate: the old
           // shape re-listed every tag and re-read every manifest for each
           // candidate, so deleting n candidates from a repository of m tags cost
-          // n * (m + 1) uncached requests through a six-slot pool.
-          const checksByRepository = new Map();
+          // n * (m + 1) uncached requests through a six-slot pool. It is renewed
+          // every RESNAPSHOT_EVERY_DELETES deletes or RESNAPSHOT_AFTER_MS, since
+          // a snapshot held for the whole run misses every tag pushed after it.
+          const snapshots = new Map();
+          const snapshotFor = (repository) => {
+            let snapshot = snapshots.get(repository);
+            if (
+              !snapshot ||
+              snapshot.deletes >= RESNAPSHOT_EVERY_DELETES ||
+              Date.now() - snapshot.takenAt >= RESNAPSHOT_AFTER_MS
+            ) {
+              // takenAt is stamped when the read finishes, not when it starts: a
+              // snapshot that itself takes 30s would otherwise be stale on arrival.
+              const fresh = { takenAt: Date.now(), deletes: 0 };
+              fresh.check = client.currentAliases(repository).then((result) => {
+                fresh.takenAt = Date.now();
+                return result;
+              });
+              snapshot = fresh;
+              snapshots.set(repository, snapshot);
+            }
+            return snapshot;
+          };
           for (const candidate of candidates) {
             try {
-              if (!checksByRepository.has(candidate.repository)) {
-                checksByRepository.set(candidate.repository, client.currentAliases(candidate.repository));
-              }
+              const snapshot = snapshotFor(candidate.repository);
               // The promise is cached, not the value, so a repository that cannot
               // be verified fails every one of its candidates with the same error
               // instead of retrying the same doomed reads for each.
-              this.assertPreviewStillHolds(await checksByRepository.get(candidate.repository), candidate);
+              this.assertPreviewStillHolds(await snapshot.check, candidate);
               // Residual race, unavoidable: a tag can still be pushed between the
               // check above and this DELETE, and the registry API has no
               // conditional (compare-and-delete) form to close it.
               await client.deleteManifest(candidate.repository, candidate.digest);
+              snapshot.deletes++;
             } catch (error) {
               failures.push(`${candidate.repository}: ${error.message || error}`);
             }

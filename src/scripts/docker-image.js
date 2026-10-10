@@ -20,16 +20,22 @@ import { Http } from './http.js';
 import { requestPool } from './request-pool.js';
 import { ERROR_CAN_NOT_READ_CONTENT_DIGEST } from './utils.js';
 
+// What an index may list and still be shown as platforms. A child that is a layer
+// (a buildkit cache export) makes the document an image-shaped thing, not a list.
+const LISTABLE_CHILD_TYPES = new Set([
+  'application/vnd.oci.image.manifest.v1+json',
+  'application/vnd.docker.distribution.manifest.v2+json',
+  'application/vnd.oci.image.index.v1+json',
+  'application/vnd.docker.distribution.manifest.list.v2+json',
+]);
+
 export const supportListManifest = (response) => {
   if (response.mediaType === 'application/vnd.docker.distribution.manifest.list.v2+json') {
     return true;
   }
   if (response.mediaType === 'application/vnd.oci.image.index.v1+json' && Array.isArray(response.manifests)) {
     const manifests = filterWrongManifests(response);
-    return (
-      manifests.length > 0 &&
-      !manifests.some(({ mediaType }) => mediaType !== 'application/vnd.oci.image.manifest.v1+json')
-    );
+    return manifests.length > 0 && manifests.every(({ mediaType }) => LISTABLE_CHILD_TYPES.has(mediaType));
   }
   return false;
 };
@@ -139,7 +145,8 @@ export class DockerImage {
           // platform is not ambiguous, and buildx wraps a lone manifest in an
           // index routinely, so single-platform rows were reporting "Multiple"
           // beside a single architecture badge.
-          self.isIndex = manifests.length > 1;
+          // An empty list has no platform to defer to either.
+          self.isIndex = manifests.length !== 1;
           if (self.isIndex) {
             // Assigned before 'list' fires: a listener creates variants[0] from
             // inside that event, and assigning afterwards overwrote it.
@@ -170,6 +177,16 @@ export class DockerImage {
             self.trigger('blobs', blobs);
           });
           only.fillInfo();
+          return;
+        }
+        // An index reaching here was not asked for as a list (a platform's own
+        // child that is itself an index): its descriptors are manifests, not
+        // layers, so summing them would report a size that is not the image's.
+        // A schema 1 manifest has no `layers` at all. Neither has a size or
+        // date this view can state.
+        const isUnlistedIndex = !response.layers && supportListManifest(response);
+        if (isUnlistedIndex || !(response.layers || response.manifests)) {
+          self.markUnavailable();
           return;
         }
         self.ociImage = response.mediaType === 'application/vnd.oci.image.index.v1+json';
@@ -219,27 +236,32 @@ export class DockerImage {
       done();
       if (this.status === 200 || this.status === 202) {
         const response = JSON.parse(this.responseText);
-        self.creationDate = new Date(response.created || self.annotations?.['org.opencontainers.image.created']);
+        // Null, not Invalid Date: the cell formats this and would read
+        // "undefined ago". Same convention as markUnavailable.
+        const created = new Date(response.created || self.annotations?.['org.opencontainers.image.created']);
+        self.creationDate = Number.isNaN(created.getTime()) ? null : created;
         self.blobs = response;
         self.blobs.history = self.blobs.history || [];
         self.blobs.history
           .filter((e) => !e.empty_layer)
           .forEach((e, i) => {
-            e.size = self.layers[i].size;
-            e.id = self.layers[i].digest.replace('sha256:', '');
+            // History and layers can disagree (squashed or truncated images).
+            // A row with no layer behind it just has no size, and must not stop
+            // the creation-date and blobs events below.
+            const layer = self.layers[i];
+            if (!layer) return;
+            e.size = layer.size;
+            e.id = layer.digest.replace('sha256:', '');
           });
         self.blobs.id = blob.replace('sha256:', '');
         self.trigger('creation-date', self.creationDate);
         self.trigger('blobs', self.blobs);
       } else if (this.status === 404) {
         self.markUnavailable();
-        self.opts.onNotify(`Blobs for ${self.name}:${self.tag} not found: blob '${self.blobs}'`, true);
+        self.opts.onNotify(`Blobs for ${self.name}:${self.tag} not found: blob '${blob}'`, true);
       } else if (!this.responseText) {
         self.markUnavailable();
-        self.opts.onNotify(
-          `Can"t get blobs for ${self.name}:${self.tag}: blob '${self.blobs}' (no message error)`,
-          true,
-        );
+        self.opts.onNotify(`Can't get blobs for ${self.name}:${self.tag}: blob '${blob}' (no message error)`, true);
       } else {
         self.markUnavailable();
         self.opts.onNotify(this.responseText);

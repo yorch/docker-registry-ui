@@ -49,7 +49,7 @@ describe('registry analysis', () => {
     const kept = plan.skipped.filter((s) => /Kept among newest/.test(s.reason)).flatMap((s) => s.tags);
     assert.deepEqual(kept, ['newest'], 'the genuinely newest tag is the one retained');
     // The undated record is still refused on its own merits.
-    assert.ok(plan.skipped.some((s) => /Creation date unavailable/.test(s.reason)));
+    assert.ok(plan.skipped.some((s) => /No reliable build date/.test(s.reason)));
     assert.ok(!plan.candidates.some((c) => c.tags.includes('broken')));
   });
 

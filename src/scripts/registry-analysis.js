@@ -6,10 +6,25 @@
  * the damage was to its neighbours. A finite sentinel sorts it last and keeps
  * the ordering total (subtracting two sentinels gives 0, not NaN).
  */
-const timeOf = (record) => {
-  const time = new Date(record.created ?? 0).getTime();
-  return Number.isNaN(time) ? Number.MIN_SAFE_INTEGER : time;
+/*
+ * Reproducible builds (SOURCE_DATE_EPOCH=0: ko, rules_oci, nix) stamp 1970 or
+ * 0001-01-01. Those say nothing about when the image was made, and they all tie,
+ * so ordering by them is arbitrary. Nothing real predates this cutoff.
+ */
+const EARLIEST_TRUSTED_MS = Date.UTC(2000, 0, 1);
+
+const reliableTime = (created) => {
+  if (!created) return undefined;
+  const time = new Date(created).getTime();
+  return Number.isNaN(time) || time < EARLIEST_TRUSTED_MS ? undefined : time;
 };
+
+const timeOf = (record) => reliableTime(record.created) ?? Number.MIN_SAFE_INTEGER;
+
+// cosign stores signatures, attestations and SBOMs as tags named after the
+// digest they describe: sha256-<hex>.sig, .att, .sbom. The OCI 1.1 referrers
+// fallback uses the bare sha256-<hex> for an index of signatures/SBOMs.
+const COSIGN_TAG_REGEX = /^sha256-[a-f0-9]{64}(\.(sig|att|sbom))?$/;
 
 const byNewest = (left, right) => timeOf(right) - timeOf(left);
 
@@ -63,27 +78,59 @@ export const summarizeRegistry = (records, repositoryNames = [], unreadableRepos
  */
 export const planRetention = (
   records,
-  { olderThanDays = 90, keepNewest = 5, protectedPatterns = ['latest', 'stable'] } = {},
+  { olderThanDays = 90, keepNewest = 5, protectedPatterns = ['latest', 'stable'], deleteCosignTags = false } = {},
   now = new Date(),
   unverifiedRepositories = [],
 ) => {
   const unverified = new Set(unverifiedRepositories);
-  const cutoff = now.getTime() - Math.max(0, olderThanDays) * 86400000;
+  // A NaN here made every comparison below false, so nothing counted as recent
+  // or kept and everything became a candidate. Refuse the whole plan instead.
+  const validPolicy = Number.isFinite(olderThanDays) && Number.isFinite(keepNewest);
+  const cutoff = now.getTime() - (validPolicy ? Math.max(0, olderThanDays) : 0) * 86400000;
   const patterns = compilePatterns(protectedPatterns);
   const candidates = [];
   const skipped = [];
   const byRepository = new Map();
+  const cosignRecords = new Set();
   records.forEach((record) => {
+    if (!validPolicy) {
+      skipped.push({ repository: record.repository, tags: [record.tag], reason: 'Invalid retention policy' });
+      return;
+    }
+    if (!deleteCosignTags && COSIGN_TAG_REGEX.test(record.tag)) {
+      // Not ranked, but still kept in the repository's records below: an index
+      // under a cosign-shaped name still references children that stay protected.
+      cosignRecords.add(record);
+      skipped.push({
+        repository: record.repository,
+        digest: record.digest,
+        tags: [record.tag],
+        reason: `Cosign signature/attestation tag: ${record.tag}`,
+      });
+    }
     const items = byRepository.get(record.repository) || [];
     items.push(record);
     byRepository.set(record.repository, items);
   });
 
   byRepository.forEach((repositoryRecords, repository) => {
-    const sorted = [...repositoryRecords].sort(byNewest);
-    const keptTags = new Set(sorted.slice(0, Math.max(0, keepNewest)).map((record) => record.tag));
-    const byDigest = new Map();
+    // Deleting a manifest removes every tag on it, cosign ones included, so a
+    // real tag sharing a digest with a cosign tag is protected, not offered.
+    const cosignDigests = new Map();
+    repositoryRecords.forEach((record) => {
+      if (cosignRecords.has(record) && record.digest) cosignDigests.set(record.digest, record.tag);
+    });
+    const sorted = repositoryRecords.filter((record) => !cosignRecords.has(record)).sort(byNewest);
     const verdicts = [];
+    const referenced = new Map();
+    repositoryRecords.forEach((record) => {
+      if (!record.isIndex) return;
+      const digests = [...(record.references || []), ...(record.platforms || []).map((platform) => platform.digest)];
+      digests.forEach((digest) => {
+        if (digest && digest !== record.digest && !referenced.has(digest)) referenced.set(digest, record.tag);
+      });
+    });
+    const byDigest = new Map();
     sorted.forEach((record) => {
       const key = record.digest;
       if (!key) {
@@ -94,24 +141,44 @@ export const planRetention = (
       aliases.push(record);
       byDigest.set(key, aliases);
     });
+    // Distinct digests, not tags: `1`, `1.0` and `1.0.0` on one image are one
+    // image. Map preserves the newest-first insertion order of `sorted`.
+    // Digests already protected on their own (an index references them, a pattern
+    // matches, or no trustworthy date) must not use up a slot either: a tagged
+    // platform child ties with its index and would otherwise displace the release.
+    const keptDigests = new Set(
+      [...byDigest.entries()]
+        .filter(
+          ([digest, aliases]) =>
+            !referenced.has(digest) &&
+            !cosignDigests.has(digest) &&
+            !aliases.some((record) => patterns.some((pattern) => pattern.test(record.tag))) &&
+            aliases.every((record) => reliableTime(record.created) !== undefined),
+        )
+        .map(([digest]) => digest)
+        .slice(0, Math.max(0, keepNewest)),
+    );
     byDigest.forEach((aliases, digest) => {
       const protectedTag = aliases.find((record) => patterns.some((pattern) => pattern.test(record.tag)));
-      const newestTag = aliases.find((record) => keptTags.has(record.tag));
-      const missingDate = aliases.find((record) => !record.created || Number.isNaN(new Date(record.created).getTime()));
-      const recentTag = aliases.find((record) => new Date(record.created).getTime() >= cutoff);
-      const blocked = protectedTag || newestTag || missingDate || recentTag;
+      const newestTag = keptDigests.has(digest) ? aliases[0] : undefined;
+      const missingDate = aliases.find((record) => reliableTime(record.created) === undefined);
+      const recentTag = aliases.find((record) => reliableTime(record.created) >= cutoff);
+      const cosignShared = cosignDigests.get(digest);
+      const blocked = cosignShared || protectedTag || newestTag || missingDate || recentTag;
       if (blocked) {
         skipped.push({
           repository,
           digest,
           tags: aliases.map((record) => record.tag),
-          reason: protectedTag
-            ? `Protected tag: ${protectedTag.tag}`
-            : newestTag
-              ? `Kept among newest: ${newestTag.tag}`
-              : missingDate
-                ? `Creation date unavailable: ${missingDate.tag}`
-                : `Newer than cutoff: ${recentTag.tag}`,
+          reason: cosignShared
+            ? `Cosign tag on the same digest: ${cosignShared}`
+            : protectedTag
+              ? `Protected tag: ${protectedTag.tag}`
+              : newestTag
+                ? `Kept among newest: ${newestTag.tag}`
+                : missingDate
+                  ? `No reliable build date: ${missingDate.tag}`
+                  : `Newer than cutoff: ${recentTag.tag}`,
         });
         return;
       }
@@ -140,14 +207,6 @@ export const planRetention = (
      * `references` is the full descendant set, attestations and nested indexes
      * included; `platforms` is unioned in for records that only carry that.
      */
-    const referenced = new Map();
-    repositoryRecords.forEach((record) => {
-      if (!record.isIndex) return;
-      const digests = [...(record.references || []), ...(record.platforms || []).map((platform) => platform.digest)];
-      digests.forEach((digest) => {
-        if (digest && digest !== record.digest && !referenced.has(digest)) referenced.set(digest, record.tag);
-      });
-    });
     verdicts.forEach((candidate) => {
       const parent = referenced.get(candidate.digest);
       if (unverified.has(repository)) {
