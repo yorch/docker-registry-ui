@@ -306,6 +306,11 @@
   animation: dialog-in var(--dur-normal) var(--ease-out);
 }
 
+/* Focused by script when the body has no control to land on; not a tab stop. */
+.dialog:focus {
+  outline: none;
+}
+
 .dialog--wide {
   width: min(94vw, 820px);
 }

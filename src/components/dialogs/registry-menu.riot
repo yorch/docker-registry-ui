@@ -14,12 +14,12 @@
     on-server-change="{ props.onServerChange }"
   ></add-registry-url>
 
-  <div class="registry-menu { state.open ? 'is-open' : '' }">
+  <div class="registry-menu { state.open ? 'is-open' : '' }" onkeydown="{ onKeyDown }">
     <button
       class="registry-trigger"
       onclick="{ toggle }"
-      aria-haspopup="menu"
-      aria-expanded="{ state.open }"
+      aria-expanded="{ state.open ? 'true' : 'false' }"
+      aria-controls="registry-popover"
       title="{ props.registryUrl || 'No registry selected' }"
       type="button"
     >
@@ -29,7 +29,7 @@
       <i class="material-icons" aria-hidden="true">{ state.open ? 'expand_less' : 'expand_more' }</i>
     </button>
 
-    <div class="registry-popover" if="{ state.open }" role="menu">
+    <div class="registry-popover" id="registry-popover" if="{ state.open }">
       <div class="popover-header">Registries</div>
       <ul class="popover-list">
         <li each="{ url in state.registries }" class="{ url === props.registryUrl ? 'is-active' : '' }">
@@ -81,6 +81,14 @@
       },
       toggle() {
         this.update({ open: !this.state.open });
+      },
+      // A disclosure, not an ARIA menu (no menuitems, no arrow-key model), so
+      // the one thing owed is the way out: Escape closes it and returns focus.
+      onKeyDown(e) {
+        if (e.key === 'Escape' && this.state.open) {
+          this.update({ open: false });
+          this.$('.registry-trigger').focus();
+        }
       },
       onOpen() {
         this.update({ open: false, addDialog: true });
