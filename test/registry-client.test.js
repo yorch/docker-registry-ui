@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import { createServer } from 'node:http';
 import { createMockRegistry } from '../dev/mock-registry/server.js';
 import { newestDate, parseNextLink, RegistryClient, toRegistryError } from '../src/scripts/registry-client.js';
 import { MAX_CONCURRENT_REQUESTS, requestPool } from '../src/scripts/request-pool.js';
@@ -139,6 +140,55 @@ describe('registry client', () => {
         /nothing was deleted/,
         'an unverifiable repository must fail closed, not return a partial alias map',
       );
+    });
+  });
+
+  describe('tags pagination', () => {
+    it('should follow tags/list pages and see an alias on a later page', async () => {
+      const paged = await createMockRegistry({ port: 0, tagPageSize: 2 });
+      try {
+        const client = new RegistryClient({ registryUrl: paged.url, onAuthentication: () => {} });
+        const tags = await client.tags('nginx');
+        assert.deepEqual(tags, ['1.26', '1.27', '1.27.3', 'latest', 'stable']);
+        const aliases = await client.currentAliases('nginx');
+        assert.deepEqual([...aliases.values()][0].sort(), ['1.26', '1.27', '1.27.3', 'latest', 'stable']);
+      } finally {
+        await paged.close();
+      }
+    });
+
+    const serveTags = async (link) => {
+      const server = createServer((req, res) => {
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Expose-Headers': 'Link',
+          Link: link(req),
+        });
+        res.end(JSON.stringify({ name: 'r', tags: ['a'] }));
+      });
+      await new Promise((resolve) => server.listen(0, resolve));
+      return { url: `http://localhost:${server.address().port}`, close: () => new Promise((r) => server.close(r)) };
+    };
+
+    it('should throw rather than return a partial list when a next link is unparseable', async () => {
+      const server = await serveTags(() => 'garbage; rel="next"');
+      try {
+        const client = new RegistryClient({ registryUrl: server.url, onAuthentication: () => {} });
+        await assert.rejects(() => client.currentAliases('r'), /could not be followed/);
+      } finally {
+        await server.close();
+      }
+    });
+
+    it('should throw when a next link loops back to a page already read', async () => {
+      const server = await serveTags((req) => `<${req.url}>; rel="next"`);
+      try {
+        const client = new RegistryClient({ registryUrl: server.url, onAuthentication: () => {} });
+        await assert.rejects(() => client.tags('r'), /already read/);
+      } finally {
+        await server.close();
+      }
     });
   });
 });

@@ -148,6 +148,13 @@ describe('mock registry', () => {
       assert.equal((await get('/v2/nginx/manifests/latest', { Accept: UI_ACCEPT })).status, 404);
     });
 
+    it('should refuse to delete by tag, as Distribution does', async () => {
+      const deleted = await fetch(`${registry.url}/v2/nginx/manifests/latest`, { method: 'DELETE' });
+      assert.equal(deleted.status, 405);
+      assert.equal((await deleted.json()).errors[0].code, 'UNSUPPORTED');
+      assert.ok((await json('/v2/nginx/tags/list')).tags.includes('latest'), 'nothing may be removed');
+    });
+
     it('should start from clean fixtures for each instance', async () => {
       const tags = await json('/v2/nginx/tags/list');
       assert.ok(tags.tags.includes('latest'), 'a previous delete must not leak into a new instance');
@@ -201,6 +208,39 @@ describe('mock registry', () => {
     it('should serve a repository with exactly one page of tags', async () => {
       const body = await json('/v2/exactly-100/tags/list');
       assert.equal(body.tags.length, 100);
+    });
+  });
+
+  describe('options', () => {
+    let custom;
+    afterEach(async () => {
+      await custom?.close();
+    });
+
+    it('should refuse every DELETE when deletes are disabled', async () => {
+      custom = await createMockRegistry({ port: 0, allowDelete: false });
+      const response = await fetch(`${custom.url}/v2/nginx/manifests/latest`, { headers: { Accept: UI_ACCEPT } });
+      const digest = response.headers.get('Docker-Content-Digest');
+      const deleted = await fetch(`${custom.url}/v2/nginx/manifests/${digest}`, { method: 'DELETE' });
+      assert.equal(deleted.status, 405);
+    });
+
+    it('should paginate sorted tags with a Link header when tagPageSize is set', async () => {
+      custom = await createMockRegistry({ port: 0, tagPageSize: 2 });
+      const first = await fetch(`${custom.url}/v2/nginx/tags/list`);
+      const firstBody = await first.json();
+      assert.deepEqual(firstBody.tags, ['1.26', '1.27']);
+      const link = first.headers.get('Link');
+      assert.match(link, /rel="next"/);
+      const next = /<([^>]+)>/.exec(link)[1];
+      const second = await (await fetch(`${custom.url}${next}`)).json();
+      assert.deepEqual(second.tags, ['1.27.3', 'latest']);
+    });
+
+    it('should honour a smaller n than the page size', async () => {
+      custom = await createMockRegistry({ port: 0, tagPageSize: 3 });
+      const body = await (await fetch(`${custom.url}/v2/nginx/tags/list?n=1`)).json();
+      assert.deepEqual(body.tags, ['1.26']);
     });
   });
 });

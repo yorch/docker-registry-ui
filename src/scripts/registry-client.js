@@ -172,9 +172,33 @@ export class RegistryClient {
     return [...repositories].sort();
   }
 
+  /*
+   * Follows `Link: rel="next"` so a registry that paginates tags/list is read
+   * in full. A next link that cannot be followed -- unparseable, or pointing
+   * back at a page already read -- throws rather than returning what was read so
+   * far: callers such as currentAliases rely on this list being complete, and a
+   * partial one is indistinguishable from a repository that simply has fewer
+   * tags.
+   */
   async tags(repository, { noCache = false } = {}) {
-    const response = await this.request(`${this.registryUrl}/v2/${repository}/tags/list`, { noCache });
-    return response.json?.tags || [];
+    const tags = [];
+    const visited = new Set();
+    let url = `${this.registryUrl}/v2/${repository}/tags/list`;
+    while (url) {
+      visited.add(url);
+      const response = await this.request(url, { noCache });
+      tags.push(...(response.json?.tags || []));
+      const link = response.header('Link');
+      const next = parseNextLink(link, url);
+      if (link && !next && /rel\s*=\s*["']?next/i.test(link)) {
+        throw new Error(`The tag list for ${repository} has a next page that could not be followed`);
+      }
+      if (next && visited.has(next)) {
+        throw new Error(`The tag list for ${repository} links back to a page already read`);
+      }
+      url = next;
+    }
+    return tags;
   }
 
   async manifest(repository, reference, { noCache = false } = {}) {
