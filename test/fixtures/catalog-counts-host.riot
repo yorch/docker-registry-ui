@@ -1,0 +1,24 @@
+<catalog-counts-host>
+  <catalog
+    registry-url="{ state.registryUrl }"
+    catalog-elements-limit="{ props.limit || 1000 }"
+    on-notify="{ () => {} }"
+    on-clear-page-error="{ () => {} }"
+    on-authentication="{ () => {} }"
+    filter-results=""
+    show-catalog-nb-tags="{ true }"
+    catalog-default-expanded="{ true }"
+    is-registry-secured="{ false }"
+    is-image-remove-activated="{ false }"
+  ></catalog>
+  <script>
+    import Catalog from '../../src/components/catalog/catalog.riot';
+    // Like the stale-ui host, but with tag counts on so the catalog queues work.
+    export default {
+      components: { Catalog },
+      onBeforeMount(props) {
+        this.state = { registryUrl: props.registryUrl };
+      },
+    };
+  </script>
+</catalog-counts-host>

@@ -26,6 +26,12 @@ export async function resolve(specifier, context, nextResolve) {
 }
 
 export async function load(url, context, nextLoad) {
+  // rollup's import-svg plugin turns an svg import into a function returning a
+  // parsed document. Tests never look at the artwork, so a stub is enough.
+  if (url.endsWith('.svg')) {
+    const source = 'export default () => ({ firstElementChild: { outerHTML: "<svg></svg>" } });';
+    return { format: 'module', shortCircuit: true, source };
+  }
   if (!url.endsWith('.riot')) {
     return nextLoad(url, context);
   }

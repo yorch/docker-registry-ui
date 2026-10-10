@@ -27,8 +27,11 @@ export class RequestPool {
   // that would settle it, and the promise would stay pending for the life of
   // the page. That is what left the retention delete dialog stuck on
   // "Deleting…" when the catalog refreshed mid-delete.
-  submit(task, onDrop) {
-    this.queue.push({ task, onDrop });
+  //
+  // `owner` is whatever the caller will later hand to drop(), so one screen can
+  // cancel its own queued work without cancelling another's.
+  submit(task, onDrop, owner) {
+    this.queue.push({ task, onDrop, owner });
     this.pump();
   }
 
@@ -36,9 +39,20 @@ export class RequestPool {
   // queued has been superseded -- a different registry, a fresh tag list. Work
   // already on the wire is left to finish; its result gets discarded by the
   // caller's own guards.
-  drop() {
-    const dropped = this.queue;
-    this.queue = [];
+  // With an owner, only that owner's queued work goes. With none, everything
+  // does, which is what every caller did before owners existed.
+  drop(owner) {
+    this.dropMatching((entry) => owner === undefined || entry.owner === owner);
+  }
+
+  // Work submitted without an owner, for callers that cannot name one yet.
+  dropUnowned() {
+    this.dropMatching((entry) => entry.owner === undefined);
+  }
+
+  dropMatching(matches) {
+    const dropped = this.queue.filter(matches);
+    this.queue = this.queue.filter((entry) => !matches(entry));
     dropped.forEach(({ onDrop }) => {
       try {
         onDrop?.();

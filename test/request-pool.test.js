@@ -156,6 +156,71 @@ describe('request-pool', () => {
     });
   });
 
+  describe('drop by owner', () => {
+    const blocked = (pool) => {
+      pool.submit(() => {});
+    };
+
+    it("should only drop the named owner's queued work", () => {
+      const pool = new RequestPool(1);
+      blocked(pool);
+      const dropped = [];
+      const ran = [];
+      pool.submit(
+        () => ran.push('a1'),
+        () => dropped.push('a1'),
+        'a',
+      );
+      pool.submit(
+        () => ran.push('b1'),
+        () => dropped.push('b1'),
+        'b',
+      );
+      pool.submit(
+        () => ran.push('anon'),
+        () => dropped.push('anon'),
+      );
+      pool.drop('a');
+      assert.deepEqual(dropped, ['a1']);
+      assert.equal(pool.queue.length, 2, 'other owners and unowned work stay queued');
+      assert.deepEqual(ran, []);
+    });
+
+    it('should still drop everything when no owner is given', () => {
+      const pool = new RequestPool(1);
+      blocked(pool);
+      const dropped = [];
+      pool.submit(
+        () => {},
+        () => dropped.push('a'),
+        'a',
+      );
+      pool.submit(
+        () => {},
+        () => dropped.push('anon'),
+      );
+      pool.drop();
+      assert.deepEqual(dropped, ['a', 'anon']);
+    });
+
+    it('should drop only unowned work with dropUnowned', () => {
+      const pool = new RequestPool(1);
+      blocked(pool);
+      const dropped = [];
+      pool.submit(
+        () => {},
+        () => dropped.push('a'),
+        'a',
+      );
+      pool.submit(
+        () => {},
+        () => dropped.push('anon'),
+      );
+      pool.dropUnowned();
+      assert.deepEqual(dropped, ['anon']);
+    });
+  });
+
   it('should default to a sensible concurrency cap', () => {
     assert.equal(MAX_CONCURRENT_REQUESTS, 6);
     assert.equal(new RequestPool().limit, MAX_CONCURRENT_REQUESTS);

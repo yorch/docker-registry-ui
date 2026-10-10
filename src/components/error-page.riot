@@ -4,7 +4,7 @@
     <h2>{ props.code }</h2>
     <template if="{ props.code === 'CATALOG_NOT_FOUND' }">
       <p>We received a 404 status code from your registry.</p>
-      <p>The contact point was <a href="{ props.url }">{ props.url }</a></p>
+      <p>The contact point was <a href="{ safeUrl(props.url) }">{ props.url }</a></p>
       <p>
         This may be caused by a misconfiguration of Registry Explorer. Check the
         <a href="https://github.com/yorch/docker-registry-ui#faq">FAQ</a> and
@@ -14,8 +14,7 @@
     <template if="{ props.code === 'MIXED_CONTENT' }">
       <p>
         <span>Mixed Content</span>: The page at `<a href="{ window.location.origin }">{ window.location.origin }</a>`
-        was loaded over HTTPS, but requested an insecure server endpoint `<a href="{ new URL(props.url).origin }"
-          >{ new URL(props.url).origin }</a
+        was loaded over HTTPS, but requested an insecure server endpoint `<a href="{ urlOrigin() }">{ urlOrigin() }</a
         >`.
       </p>
       <p>This request <span>may</span> has been blocked; the content must be served over HTTPS.</p>
@@ -66,7 +65,16 @@
     </template>
   </div>
   <script>
+    import { safeUrl } from '../scripts/utils';
+
     export default {
+      // The url comes from the query string or saved registries, so it is only
+      // ever linked when it is http(s).
+      safeUrl,
+      urlOrigin() {
+        const url = safeUrl(this.props.url);
+        return url && new URL(url).origin;
+      },
       getStatusCode() {
         const { props } = this;
         switch (props.code) {
