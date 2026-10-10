@@ -18,27 +18,6 @@ const getNamespaceName = (split, max) => {
   return namespace;
 };
 
-const getLatestNamespace = (node, namespace) => {
-  if (!node.repositories) {
-    return;
-  }
-  if (node.namespace === namespace) {
-    return node;
-  }
-  for (let i = 0; i < node.repositories.length; i++) {
-    const res = getLatestNamespace(node.repositories[i], namespace);
-    if (res) {
-      return res;
-    }
-  }
-
-  if (namespace.startsWith(node.namespace)) {
-    const child = { namespace, repositories: [] };
-    node.repositories.push(child);
-    return child;
-  }
-};
-
 const cleanInt = (n) => (n === '' ? 1 : parseInt(n, 10));
 
 export const getBranching = (min = 1, max = 1) => {
@@ -59,23 +38,41 @@ export const getBranching = (min = 1, max = 1) => {
   if (max == 1) {
     min = 1;
   }
-  return (repositories) =>
-    repositories.sort().reduce((acc, repository) => {
+  return (repositories) => {
+    const sorted = repositories.sort();
+    const namespaceOf = (repository) => {
       const split = repository.split('/');
-      if (split.length > min && min > 0) {
-        const namespace = getNamespaceName(split, max);
-        let node = acc.length > 0 && getLatestNamespace(acc[acc.length - 1], namespace);
-        if (!node) {
-          node = {
-            namespace,
-            repositories: [],
-          };
-          acc.push(node);
-        }
-        node.repositories.push(repository);
-        return acc;
+      return split.length > min && min > 0 ? getNamespaceName(split, max) : '';
+    };
+    // Every namespace in use is known before any node is built, so where a node
+    // nests depends on the set of names and never on the order they sort in.
+    const namespaces = new Set(sorted.map(namespaceOf).filter(Boolean));
+    const nodes = new Map();
+    const acc = [];
+    // A node nests under the longest namespace that is a proper prefix of its
+    // own, or sits at the top level when there is none.
+    const ensureNode = (namespace) => {
+      let node = nodes.get(namespace);
+      if (node) {
+        return node;
       }
-      acc.push(repository);
-      return acc;
-    }, []);
+      node = { namespace, repositories: [] };
+      nodes.set(namespace, node);
+      let parent;
+      const segments = namespace.split('/').slice(0, -1);
+      for (let i = segments.length - 1; i > 0 && !parent; i--) {
+        const prefix = `${segments.slice(0, i).join('/')}/`;
+        if (namespaces.has(prefix)) {
+          parent = ensureNode(prefix);
+        }
+      }
+      (parent ? parent.repositories : acc).push(node);
+      return node;
+    };
+    sorted.forEach((repository) => {
+      const namespace = namespaceOf(repository);
+      (namespace ? ensureNode(namespace).repositories : acc).push(repository);
+    });
+    return acc;
+  };
 };
