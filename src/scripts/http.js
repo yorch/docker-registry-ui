@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getFromCache, setCache } from './cache-request.js';
+import { addressedDigest, getFromCache, setCache } from './cache-request.js';
 
 export class Http {
   constructor(opts) {
@@ -124,18 +124,9 @@ export class Http {
               requestUrl,
             );
           } else {
-            (this.status === 200 || this.status === 202) &&
-              !self.withCredentials &&
-              setCache(
-                self._method,
-                self._url,
-                {
-                  responseText: this.responseText,
-                  dockerContentdigest: this.getResponseHeader('Docker-Content-Digest'),
-                },
-                Date.now(),
-                self.cacheVariant(),
-              );
+            if ((this.status === 200 || this.status === 202) && !self.withCredentials && !self.bypassesCache()) {
+              self.storeResponse(this);
+            }
             f.bind(this)();
           }
         });
@@ -158,6 +149,40 @@ export class Http {
     }
   }
 
+  // Cache-Control on the request is how USE_CONTROL_CACHE_HEADER asks for fresh
+  // data. The browser honours it, but this cache sits in front of the browser.
+  bypassesCache() {
+    const control = this._headers['Cache-Control'] || this._headers['cache-control'] || '';
+    return this.noCache || /no-(store|cache)/i.test(control);
+  }
+
+  // Digest-addressed entries are shared and never expire, so a body that does
+  // not hash to the digest in its own URL (a hostile or broken registry) must
+  // not be stored. Without crypto.subtle (plain http) it cannot be checked, so
+  // it is not stored either. The caller has already been answered by now.
+  storeResponse(response) {
+    const entry = {
+      responseText: response.responseText,
+      dockerContentdigest: response.getResponseHeader('Docker-Content-Digest'),
+    };
+    const method = this._method;
+    const url = this._url;
+    const variant = this.cacheVariant();
+    const expected = addressedDigest(method, url);
+    if (!expected) {
+      setCache(method, url, entry, Date.now(), variant);
+      return;
+    }
+    if (!globalThis.crypto?.subtle || !globalThis.TextEncoder || typeof entry.responseText !== 'string') return;
+    globalThis.crypto.subtle
+      .digest('SHA-256', new TextEncoder().encode(entry.responseText))
+      .then((buffer) => {
+        const actual = `sha256:${Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+        if (actual === expected) setCache(method, url, entry, Date.now(), variant);
+      })
+      .catch(() => {});
+  }
+
   setRequestHeader(header, value) {
     this.oReq.setRequestHeader(header, value);
     this._headers[header] = value;
@@ -174,7 +199,7 @@ export class Http {
   }
 
   send() {
-    if (!this.noCache && !this.withCredentials) {
+    if (!this.bypassesCache() && !this.withCredentials) {
       const cache = getFromCache(this._method, this._url, Date.now(), this.cacheVariant());
       if (cache?.responseText) {
         this.cache = cache;

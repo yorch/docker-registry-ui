@@ -12,14 +12,20 @@
  *              on two registries is two different things, and expired quickly.
  */
 
-const NAMESPACE = 'drui:v1:';
+// v2: entries written under v1 were never hash-verified, so they are not trusted.
+const NAMESPACE = 'drui:v2:';
 const IMMUTABLE_REGEX = /(blobs|manifests)\/sha256:[a-f0-9]+$/;
+const DIGEST_REGEX = /\/(?:blobs|manifests)\/(sha256:[a-f0-9]+)$/;
 const TAGS_LIST_REGEX = /\/v2\/.+\/tags\/list(\?.*)?$/;
 const TAG_MANIFEST_REGEX = /\/v2\/.+\/manifests\/[^/]+$/;
 
 export const MUTABLE_TTL_MS = 30000;
 export const MAX_CACHE_ENTRIES = 200;
 export const MAX_CACHE_BYTES = 4 * 1024 * 1024;
+
+// The digest a content-addressed URL promises, which the caller must check the
+// body against before caching it; undefined for a mutable URL.
+export const addressedDigest = (method, url) => (method === 'GET' && url ? DIGEST_REGEX.exec(url)?.[1] : undefined);
 
 // Returns the storage key and time-to-live for a request, or undefined when the
 // request is not cacheable at all.

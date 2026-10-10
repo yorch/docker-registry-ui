@@ -224,7 +224,7 @@ describe('retention executeDelete', () => {
       const { instance, root } = mount();
       await scanAndPreview(instance);
       selectAll(instance);
-      const key = `drui:v1:url:${proxy.url}/v2/unrelated/tags/list:v:x`;
+      const key = `drui:v2:url:${proxy.url}/v2/unrelated/tags/list:v:x`;
       sessionStorage.setItem(key, JSON.stringify({ r: '{}', d: null, e: null, a: Date.now() }));
       // The user switches registries while the DELETE is in flight.
       proxy.onDelete = () => {
