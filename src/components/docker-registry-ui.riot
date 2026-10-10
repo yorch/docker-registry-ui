@@ -162,6 +162,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     import VersionNotification from './version-notification.riot';
     import Breadcrumbs from './breadcrumbs.riot';
     import { stripHttps, getRegistryServers, setRegistryServers, truthy, falsy, stringToArray, resolveAppName } from '../scripts/utils';
+    import { isTrustedRegistry, requestBearer } from '../scripts/auth';
     import router from '../scripts/router';
     import { loadTheme } from '../scripts/theme';
 
@@ -215,23 +216,22 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         });
       },
       onAuthentication(opts, onAuthenticated) {
-        if (opts && opts.realm && opts.service && opts.scope) {
-          const { realm, service, scope } = opts;
-          const req = new XMLHttpRequest();
-          req.addEventListener('loadend', () => {
-            try {
-              const bearer = JSON.parse(req.responseText);
-              onAuthenticated(bearer);
-            } catch (e) {
-              this.notifySnackbar(`Failed to log in: ${e.message}`, true);
-            }
-          });
-          req.withCredentials = true;
-          req.open('GET', `${realm}?service=${service}&scope=${scope}`);
-          req.send();
-        } else {
-          onAuthenticated();
-        }
+        const trustedRegistries = [
+          this.props.registryUrl,
+          ...(Array.isArray(this.props.defaultRegistries)
+            ? this.props.defaultRegistries
+            : stringToArray(this.props.defaultRegistries)),
+          ...getRegistryServers(),
+        ].filter(Boolean);
+        requestBearer(
+          opts,
+          {
+            registryUrl: this.state.registryUrl,
+            trusted: isTrustedRegistry(this.state.registryUrl, trustedRegistries),
+            notify: (message, isError) => this.notifySnackbar(message, isError),
+          },
+          onAuthenticated,
+        );
       },
       pullUrl(registryUrl, pullUrl) {
         const url = pullUrl || (registryUrl && registryUrl.length > 0 && registryUrl) || window.location.host;

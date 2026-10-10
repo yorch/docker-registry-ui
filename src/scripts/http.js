@@ -39,9 +39,16 @@ export class Http {
       // Same origin or advanced CORS headers set:
       // 'Access-Control-Expose-Headers: Docker-Content-Digest'
       cb(this.oReq.getResponseHeader('Docker-Content-Digest'));
-    } else if (window.crypto && window.TextEncoder) {
-      crypto.subtle
-        .digest('SHA-256', new TextEncoder().encode(this.oReq.responseText || this.cache?.responseText))
+    } else if (window.crypto?.subtle && window.TextEncoder) {
+      // `crypto.subtle` only exists on secure contexts, so plain http:// pages
+      // land in the else branch below.
+      const text = this.oReq.responseText || this.cache?.responseText;
+      if (typeof text !== 'string') {
+        cb(undefined);
+        return;
+      }
+      window.crypto.subtle
+        .digest('SHA-256', new TextEncoder().encode(text))
         .then((buffer) => {
           cb(
             'sha256:' +
@@ -49,10 +56,12 @@ export class Http {
                 .map((byte) => byte.toString(16).padStart(2, '0'))
                 .join(''),
           );
-        });
+        })
+        .catch(() => cb(undefined));
     } else {
-      // IE and old Edge
-      // simply do not call the callback and skip the setup downstream
+      // Insecure context or an old browser: no digest, and callers take their
+      // "no digest" path instead of waiting on a callback that never fires.
+      cb(undefined);
     }
   }
 
