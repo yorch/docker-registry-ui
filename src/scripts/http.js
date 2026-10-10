@@ -242,9 +242,14 @@ const getErrorMessage = function () {
   );
 };
 
-const AUTHENTICATE_HEADER_REGEX = /Bearer realm="(?<realm>[^"]+)",service="(?<service>[^"]+)",scope="(?<scope>[^"]+)"/;
-
-const parseAuthenticateHeader = (header) => {
-  const exec = AUTHENTICATE_HEADER_REGEX.exec(header);
-  return exec?.groups;
+// Parameters are matched by name: the spec does not fix their order, and a
+// registry that lists `scope` before `service` (or adds `error`) must still work.
+export const parseAuthenticateHeader = (header) => {
+  if (!/^\s*Bearer\s/i.test(header || '')) return undefined;
+  const params = {};
+  for (const [, key, value] of header.matchAll(/([a-z_]+)="([^"]*)"/gi)) {
+    params[key.toLowerCase()] = value;
+  }
+  const { realm, service, scope } = params;
+  return realm && service && scope ? { realm, service, scope } : undefined;
 };

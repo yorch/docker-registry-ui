@@ -16,7 +16,7 @@ export const PENDING_LABEL = '…';
 export const UNAVAILABLE_LABEL = '—';
 
 export function bytesToSize(bytes) {
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB'];
   // The Number() coercion below is deliberate: `bytes` is a size read straight
   // out of a config blob, so a non-numeric string has to land on the pending
   // label rather than fall through and render "NaN undefined". A bare
@@ -25,10 +25,11 @@ export function bytesToSize(bytes) {
     return UNAVAILABLE_LABEL;
   } else if (bytes == undefined || Number.isNaN(Number(bytes))) {
     return PENDING_LABEL;
-  } else if (bytes === 0) {
+  } else if (Number(bytes) === 0) {
     return '0 Byte';
   }
-  const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)), 10);
+  bytes = Number(bytes);
+  const i = Math.min(parseInt(Math.floor(Math.log(bytes) / Math.log(1024)), 10), sizes.length - 1);
   const number = bytes / 1024 ** i;
   if (number < 10) {
     const decimal = (bytes - Math.floor(number) * 1024 ** i) / 1024 ** i;
@@ -38,7 +39,8 @@ export function bytesToSize(bytes) {
 }
 
 export function dateFormat(date) {
-  if (date === undefined) {
+  // Invalid Date (and null, which would read as 1970) rendered "undefined ago".
+  if (date == null || Number.isNaN(Number(date))) {
     return '';
   }
   const labels = [
