@@ -38,7 +38,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         <span
           if="{ state.loadend }"
           class="badge badge--neutral"
-          title="Top-level rows below: repositories sharing a leading path segment are grouped under it, for example team/. A display grouping only — the registry does not store namespaces."
+          title="Groups below: repositories sharing a leading path segment are grouped under it, for example team/. A display grouping only — the registry does not store namespaces."
           >{ state.nNamespaces } namespaces</span
         >
         <button
@@ -149,6 +149,11 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       });
       return out;
     };
+
+    // Namespace nodes at any depth. Bare repositories sit in the tree too, so
+    // the tree's length is not the number of namespaces.
+    const countNamespaces = (items) =>
+      items.reduce((n, item) => (typeof item === 'string' ? n : n + 1 + countNamespaces(item.repositories || [])), 0);
 
     export default {
       components: {
@@ -334,7 +339,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
               repositoryNames: names,
               tree: displayed,
               nRepositories: names.length,
-              nNamespaces: displayed.length,
+              nNamespaces: countNamespaces(displayed),
               nextCatalogUrl: next,
             });
             // Per page, not after the loop: a later page failing would otherwise
@@ -434,7 +439,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
             tree,
             repositoryNames,
             // The branched top-level count, not the flat one -- see loadNextPage.
-            nNamespaces: tree.length,
+            nNamespaces: countNamespaces(tree),
             nRepositories,
             nextCatalogUrl,
             counts: {},
