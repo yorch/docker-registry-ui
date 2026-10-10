@@ -1,0 +1,18 @@
+<dialog-host>
+  <button class="opener" onclick="{ () => update({ open: true }) }" type="button">Open</button>
+  <button class="elsewhere" type="button">Elsewhere</button>
+  <app-dialog title="Test dialog" opened="{ state.open }" on-close="{ () => update({ open: false }) }">
+    <input class="first" />
+    <button class="middle" type="button">Middle</button>
+    <div slot="footer">
+      <button class="last" type="button">Last</button>
+    </div>
+  </app-dialog>
+  <script>
+    import AppDialog from '../../src/components/app-dialog.riot';
+    export default {
+      components: { AppDialog },
+      state: { open: false },
+    };
+  </script>
+</dialog-host>

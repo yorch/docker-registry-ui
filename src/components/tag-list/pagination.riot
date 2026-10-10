@@ -1,17 +1,31 @@
 <pagination>
-  <div class="pagination">
+  <nav class="pagination" aria-label="Pagination">
     <button
       each="{ (p, idx) in props.pages }"
       class="btn btn--sm { p.current ? 'is-current' : '' }"
       onclick="{(e) => props.onPageUpdate(idx)}"
-      aria-label="page-{ p.page }"
+      aria-label="{ pageLabel(p) }"
       aria-current="{ p.current ? 'page' : null }"
       type="button"
     >
-      <i if="{ p.icon }" class="material-icons">{ p.icon }</i>
+      <i if="{ p.icon }" class="material-icons" aria-hidden="true">{ p.icon }</i>
       <template if="{ !p.icon }">{ p.page }</template>
     </button>
-  </div>
+  </nav>
+  <script>
+    const ICON_LABELS = {
+      first_page: 'First page',
+      chevron_left: 'Previous page',
+      chevron_right: 'Next page',
+      last_page: 'Last page',
+    };
+
+    export default {
+      pageLabel(p) {
+        return ICON_LABELS[p.icon] || `Page ${p.page}`;
+      },
+    };
+  </script>
   <style>
     :host .pagination {
       display: flex;

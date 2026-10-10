@@ -174,7 +174,7 @@ There are some examples with [docker-compose](https://docs.docker.com/compose/) 
 
 ### Theme options
 
-The default palettes follow a modern SaaS look (neutral surfaces + green accent). The `THEME_*` variables override the corresponding design token; defaults come from `src/styles/tokens.scss`.
+The default palettes follow a modern SaaS look (neutral surfaces + green accent). The `THEME_*` variables override the corresponding design token; defaults come from `src/styles/tokens.scss`, except the `--header-*` and `--footer-*` rows, whose defaults are the fallbacks written into `src/styles/layout.scss`. The theme toggle remembers an explicit choice in `localStorage`; with `THEME=auto` and no choice made the OS preference is followed on every visit.
 
 | Environment variable | design token | light theme value | dark theme value |
 | --- | --- | --- | --- |
@@ -187,7 +187,7 @@ The default palettes follow a modern SaaS look (neutral surfaces + green accent)
 | `THEME_HEADER_ACCENT_TEXT` | `--header-accent-text` | `#475569` | `#9fb2c8` |
 | `THEME_HEADER_BACKGROUND` | `--header-background` | `#ffffff` | `#111a2c` |
 | `THEME_FOOTER_TEXT` | `--footer-text` | `#475569` | `#9fb2c8` |
-| `THEME_FOOTER_NEUTRAL_TEXT` | `--footer-neutral-text` | `#8b96a5` | `#667b99` |
+| `THEME_FOOTER_NEUTRAL_TEXT` | `--footer-neutral-text` | `#5b6676` | `#8497b3` |
 | `THEME_FOOTER_BACKGROUND` | `--footer-background` | `#ffffff` | `#111a2c` |
 
 ## Recommended Docker Registry Usage
