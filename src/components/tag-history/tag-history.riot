@@ -92,14 +92,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         state.image.on('blobs', this.processBlobs);
         state.image.on('list', this.multiArchList);
         state.image.fillInfo();
-        // And whatever the image already holds, in case it was filled earlier.
-        if (!state.loadend) {
-          if (state.image.manifests) {
-            this.multiArchList(state.image.manifests);
-          } else if (state.image.blobs) {
-            this.processBlobs(state.image.blobs);
-          }
-        }
       },
       onMounted() {
         this.mounted = true;
@@ -117,8 +109,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         const state = this.state;
         const { registryUrl, onNotify, onAuthentication, useControlCacheHeader, isRegistrySecured } = this.props;
         state.elements = [];
-        // 'list' fires before DockerImage assigns `variants`, so it may not exist yet.
-        state.image.variants = state.image.variants || [];
         state.image.variants[idx] =
           state.image.variants[idx] ||
           new DockerImage(this.props.image, arch.digest, {
@@ -132,8 +122,9 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         if (state.image.variants[idx].blobs) {
           return this.processBlobs(state.image.variants[idx].blobs);
         }
-        state.image.variants[idx].fillInfo();
+        // Subscribed first: a cache hit replays synchronously inside fillInfo().
         state.image.variants[idx].on('blobs', this.processBlobs);
+        state.image.variants[idx].fillInfo();
       },
       processBlobs(blobs) {
         const state = this.state;

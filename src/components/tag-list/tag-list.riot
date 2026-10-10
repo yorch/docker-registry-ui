@@ -184,21 +184,25 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         // Claimed before anything can trigger a render, so a render cannot
         // re-enter and start a second request.
         state.loadedImage = props.image;
+        // A navigation that also changes the search must not look like a filter
+        // change on the next render, which would force page 1.
+        state.loadedFilter = props.filterResults;
         // Read from `this` rather than the captured arguments: by the time a
         // reload fires, the component may have moved on to another repository.
         state.reload = () => this.display(this.props, this.state, true);
         const generation = (this.requestGeneration || 0) + 1;
         this.requestGeneration = generation;
         this.activeRequest?.abort();
+        state.page = router.getPageQueryParam() || 1;
+        state.asc = true;
         if (refresh) {
           invalidateRepository(props.registryUrl, props.image);
+          // update() replaces this.state, so everything above has to be set first.
           this.update({ refreshing: true });
         } else {
           state.loadend = false;
+          state.tags = [];
         }
-        state.page = router.getPageQueryParam() || 1;
-        if (!refresh) state.tags = [];
-        state.asc = true;
         return generation;
       },
       fetchTags(props, state, generation, refresh) {

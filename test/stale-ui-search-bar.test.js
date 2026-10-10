@@ -11,8 +11,6 @@ describe('search bar stale UI', () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
     const host = component(SearchHost)(root, {});
-    // The app shell re-renders the bar before anyone types; that is what records the current token.
-    host.update();
     const input = root.querySelector('input');
     input.value = 'nginx';
     input.dispatchEvent(new Event('keyup'));
@@ -21,5 +19,21 @@ describe('search bar stale UI', () => {
     host.update({ token: 1 });
     assert.equal(input.value, '');
     assert.equal(root.querySelector('button[aria-label="Clear search"]'), null);
+  });
+});
+
+// The first keystroke must not be mistaken for a reset: the bar has not
+// re-rendered since mount, so the token it remembers must already be the prop's.
+describe('search bar first keystroke', () => {
+  afterEach(() => document.body.replaceChildren());
+
+  it('should keep the typed text when no re-render happened since mount', () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    component(SearchHost)(root, {});
+    const input = root.querySelector('input');
+    input.value = 'n';
+    input.dispatchEvent(new Event('keyup'));
+    assert.equal(input.value, 'n', 'typed text was wiped by the reset-token check');
   });
 });

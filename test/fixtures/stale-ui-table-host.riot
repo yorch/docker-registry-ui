@@ -1,7 +1,7 @@
 <stale-ui-table-host>
   <tag-table
     tags="{ state.tags }"
-    all-tags="{ state.tags }"
+    all-tags="{ state.allTags || state.tags }"
     asc="{ true }"
     page="{ state.page }"
     tags-per-page="{ props.tagsPerPage }"

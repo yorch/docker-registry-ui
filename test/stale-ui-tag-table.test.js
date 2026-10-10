@@ -90,7 +90,53 @@ describe('tag table stale UI', () => {
     const { root, host } = mount({ tags });
     click(headerCheckbox(root));
     click(rowCheckboxes(root)[0]);
-    host.update({ tags: [...tags] });
+    host.update({ tags: [...tags], allTags: tags });
     assert.ok(root.querySelector('.selection-bar'), 'an unrelated re-render must not clear the selection');
+  });
+
+  // The parent passes the filtered list as `tags` and the fetched list as
+  // `allTags`; typing in the search box changes only the former.
+  it('should keep the selection when the search narrows the visible tags', () => {
+    const a = image('a');
+    const ab = image('ab');
+    const b = image('b');
+    const all = [a, ab, b];
+    const { root, host } = mount({ tags: all });
+    click(headerCheckbox(root));
+    click(rowCheckboxes(root)[0]);
+    assert.ok(root.querySelector('.selection-bar'), 'precondition: a row is selected');
+
+    host.update({ tags: [a, ab], allTags: all });
+    assert.ok(root.querySelector('.selection-bar'), 'typing in the search must not clear the selection');
+    assert.ok(rowCheckboxes(root)[0].checked, 'the selected row must stay checked');
+  });
+
+  // R7: a refresh replaces every DockerImage but keeps the tag names, and the
+  // rows used to be keyed by name, so they stayed bound to the old objects.
+  it('should rebind a row to the new image object when a tag is replaced', () => {
+    const { root, host } = mount({ tags: [image('a')] });
+    assert.equal(root.querySelector('tbody remove-image button').disabled, false);
+    host.update({ tags: [image('a', { digest: false })] });
+    assert.equal(
+      root.querySelector('tbody remove-image button').disabled,
+      true,
+      'the Delete button still reflects the previous object’s digest',
+    );
+  });
+
+  it('should keep rows attached to their images when the order is reversed', () => {
+    const a = image('a');
+    const b = image('b', { digest: false });
+    // Reversing happens in place in the parent: same array, new order.
+    const all = [a, b];
+    const { root, host } = mount({ tags: all });
+    click(headerCheckbox(root));
+    all.reverse();
+    host.update();
+    assert.deepEqual(rowTags(root), ['b', 'a']);
+    assert.deepEqual(
+      rowCheckboxes(root).map((input) => input.disabled),
+      [true, false],
+    );
   });
 });

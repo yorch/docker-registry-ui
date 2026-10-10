@@ -71,6 +71,44 @@ describe('tag list stale UI', function () {
     assert.ok(!tagsShown(root).includes('tag-0089'), 'page 2 rows must be gone');
   });
 
+  // R9: a navigation that also changed the filter updated only the image, so the
+  // filter was seen as new on the next render and forced page 1.
+  it('should keep the page of a navigation that also resets the search', async () => {
+    const host = component(TagListHost)(root, {
+      image: 'nginx',
+      registryUrl: registry.url,
+      tagsPerPage: '10',
+      filter: 'lat',
+    });
+    await until(() => tagsShown(root).length === 1, 'nginx never rendered');
+    window.history.replaceState(null, '', '/?page=2');
+    host.update({ image: 'exactly-100', filter: '' });
+    await until(() => tagsShown(root).length === 10, 'page never rendered');
+    assert.ok(tagsShown(root).includes('tag-0089'), `URL said page 2; URL now ${location.search}`);
+    host.update();
+    await wait(20);
+    assert.ok(tagsShown(root).includes('tag-0089'), `jumped back to page 1; URL now ${location.search}`);
+    assert.match(location.search, /page=2/);
+  });
+
+  // R10: the refresh replaced this.state, so the direction was written to a
+  // discarded object and the header kept saying "descending" over ascending rows.
+  it('should keep the header direction in step with the rows after a refresh', async () => {
+    component(TagListHost)(root, { image: 'nginx', registryUrl: registry.url, tagsPerPage: '' });
+    await until(() => tagsShown(root).length === 5, 'nginx never rendered');
+    const order = () =>
+      [...root.querySelectorAll('tag-table tbody .tag-col image-tag')].map((e) => e.textContent.trim());
+    const ascending = order();
+    root.querySelector('thead .table-sort').click();
+    assert.deepEqual(order(), [...ascending].reverse(), 'precondition: reversed');
+    root.querySelector('button[aria-label="Refresh tags"]').click();
+    await until(() => !root.querySelector('.refresh-status'), 'refresh never finished');
+    await wait(50);
+    const sort = root.querySelector('thead th[aria-sort]:not([aria-sort="none"])').getAttribute('aria-sort');
+    assert.equal(sort, order().join() === ascending.join() ? 'ascending' : 'descending');
+    assert.deepEqual(order(), ascending, 'a refresh starts over in the default order');
+  });
+
   it('should remove its window resize listener on unmount', async () => {
     const added = [];
     const removed = [];

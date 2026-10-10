@@ -21,6 +21,11 @@
     import { router } from '@riotjs/route';
 
     export default {
+      onBeforeMount(props, state) {
+        // Without this the first keystroke sees undefined !== the prop and is
+        // taken for a reset, wiping what was just typed.
+        state.resetToken = props.resetToken;
+      },
       onMounted(props, state) {
         const input = this.$('input');
         let value = '';

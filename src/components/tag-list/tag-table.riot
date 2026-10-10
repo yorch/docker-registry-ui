@@ -83,7 +83,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <tbody>
       <tr
         each="{ image in getPage(props.tags, props.page) }"
-        key="{ image.tag }"
+        key="{ image }"
         if="{ matchSearch(props.filterResults, image.tag) }"
       >
         <td class="select-col" if="{ props.isImageRemoveActivated }" data-label="Select">
@@ -156,11 +156,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     const ACTION_UNCHECK_TO_DELETE = 'UNCHECK';
     const ACTION_DELETE_IMAGE = 'DELETE';
 
-    const sameMembers = (previous, next) => {
-      next = next || [];
-      return previous.length === next.length && next.every((image) => previous.includes(image));
-    };
-
     export default {
       components: {
         ImageDate,
@@ -179,8 +174,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           toDelete: new Set(),
           multiDelete: false,
           page: props.page,
-          shownTags: [...(props.tags || [])],
-          knownTags: [...(props.allTags || [])],
+          knownTags: props.allTags,
         };
       },
       onBeforeUpdate(props, state) {
@@ -188,17 +182,18 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           state.toDelete.clear();
         }
         state.page = props.page;
-        // A refresh, a reload after a delete, navigation to another repository
-        // or a changed filter all hand this table different tags. A selection
-        // made against the old ones would otherwise outlive them, with Delete
-        // still pointing at tags that are no longer on screen. Compared by
-        // membership, because the parent builds a new array on every render.
-        if (!sameMembers(state.shownTags, props.tags) || !sameMembers(state.knownTags, props.allTags)) {
+        // A refresh, a reload after a delete or navigation to another repository
+        // hands this table a new fetched list (the parent replaces `allTags` only
+        // on a fetch; reversing reorders it in place). A selection made against
+        // the old one would otherwise outlive it, with Delete still pointing at
+        // tags that are no longer on screen. A changed search filters `tags` but
+        // leaves `allTags` alone, and typing must not end the user's selection:
+        // the confirmation lists exactly what `toDelete` holds.
+        if (state.knownTags !== props.allTags) {
           state.toDelete.clear();
           state.multiDelete = false;
           state.selectedImage = undefined;
-          state.shownTags = [...(props.tags || [])];
-          state.knownTags = [...(props.allTags || [])];
+          state.knownTags = props.allTags;
         }
       },
       deleteImages() {
