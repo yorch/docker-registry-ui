@@ -3,6 +3,7 @@ import { component } from 'riot';
 import { createMockRegistry } from '../dev/mock-registry/server.js';
 import ConfirmDeleteImage from '../src/components/dialogs/confirm-delete-image.riot';
 import { MANIFEST_ACCEPT } from '../src/scripts/registry-client.js';
+import { createFake } from './support/fake-registry.js';
 
 const NGINX_TAGS = ['latest', '1.27', '1.27.3', '1.26', 'stable'];
 
@@ -100,13 +101,40 @@ describe('confirm-delete-image', () => {
       const digest = (
         await fetch(`${paged.url}/v2/nginx/manifests/latest`, { headers: { Accept: MANIFEST_ACCEPT } })
       ).headers.get('Docker-Content-Digest');
-      const all = NGINX_TAGS.slice(0, 2).map((tag) => image('nginx', tag, digest));
+      // Exactly page 1 of the paged listing ('1.26', '1.27' sort first). The dialog
+      // therefore shows precisely what a single-page read would see, so only
+      // following the Link header to the later pages can reveal the other aliases.
+      const all = ['1.26', '1.27'].map((tag) => image('nginx', tag, digest));
       const instance = mount({ registryUrl: paged.url, tags: all, toDelete: new Set([all[0]]) });
       await instance.deleteImages();
       assert.equal(paged.requestCount(`/v2/nginx/manifests/${digest}`, 'DELETE'), 0);
       assert.match(notes[0].message, /Tags changed/);
     } finally {
       await paged.close();
+    }
+  });
+
+  it('should refuse to delete a manifest that an index references, with no DELETE', async () => {
+    const reg = await createFake();
+    try {
+      const amd = reg.image('amd64', '2020-01-01T00:00:00Z');
+      const arm = reg.image('arm64', '2020-01-01T00:00:00Z');
+      const index = reg.index([amd, arm]);
+      reg.tag('latest', index);
+      reg.tag('amd64', amd);
+      const all = [
+        { name: 'app', tag: 'latest', contentDigest: index.digest },
+        { name: 'app', tag: 'amd64', contentDigest: amd.digest },
+      ];
+      const instance = mount({ registryUrl: reg.url, tags: all, toDelete: new Set([all[1]]) });
+      await instance.deleteImages();
+      assert.deepEqual(reg.deletes, []);
+      assert.ok(reg.exists(amd.digest), 'child of app:latest deleted');
+      assert.match(notes[0].message, /referenced by index latest/);
+      assert.equal(notes[0].isError, true);
+      assert.equal(instance.state.deleting, false);
+    } finally {
+      await reg.close();
     }
   });
 

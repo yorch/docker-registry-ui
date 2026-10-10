@@ -108,6 +108,32 @@ describe('registry client', () => {
     });
   });
 
+  describe('parseNextLink origin', () => {
+    const base = 'https://registry.example/v2/app/tags/list';
+
+    it('should not follow an absolute link to another origin', () => {
+      assert.equal(parseNextLink('<https://evil.example/v2/app/tags/list?last=a>; rel="next"', base), undefined);
+      assert.equal(parseNextLink('<http://registry.example/v2/app/tags/list?last=a>; rel="next"', base), undefined);
+      assert.equal(parseNextLink('<//evil.example/x>; rel="next"', base), undefined);
+    });
+
+    it('should follow an absolute link to the same origin', () => {
+      assert.equal(
+        parseNextLink('<https://registry.example/v2/app/tags/list?last=a>; rel="next"', base),
+        'https://registry.example/v2/app/tags/list?last=a',
+      );
+    });
+
+    it('should require the registry path prefix when one is given', () => {
+      const header = '</other/tags/list?last=a>; rel="next"';
+      assert.equal(parseNextLink(header, base, 'https://registry.example/prefix'), undefined);
+      assert.equal(
+        parseNextLink('</prefix/v2/app/tags/list?last=a>; rel="next"', base, 'https://registry.example/prefix'),
+        'https://registry.example/prefix/v2/app/tags/list?last=a',
+      );
+    });
+  });
+
   describe('newestDate', () => {
     it('should compare as dates rather than as strings', () => {
       // Ordered the other way round as strings, because the second value's
@@ -125,7 +151,7 @@ describe('registry client', () => {
   describe('currentAliases', () => {
     it('should group every tag of a repository under the digest it resolves to', async () => {
       const client = new RegistryClient({ registryUrl: registry.url, onAuthentication: () => {} });
-      const aliases = await client.currentAliases('team/service-b');
+      const { aliases } = await client.currentAliases('team/service-b');
 
       // Every tag of the fixture points at one manifest, which is exactly why
       // deleting that digest would take all of them.
@@ -150,7 +176,7 @@ describe('registry client', () => {
         const client = new RegistryClient({ registryUrl: paged.url, onAuthentication: () => {} });
         const tags = await client.tags('nginx');
         assert.deepEqual(tags, ['1.26', '1.27', '1.27.3', 'latest', 'stable']);
-        const aliases = await client.currentAliases('nginx');
+        const { aliases } = await client.currentAliases('nginx');
         assert.deepEqual([...aliases.values()][0].sort(), ['1.26', '1.27', '1.27.3', 'latest', 'stable']);
       } finally {
         await paged.close();
@@ -186,6 +212,59 @@ describe('registry client', () => {
       try {
         const client = new RegistryClient({ registryUrl: server.url, onAuthentication: () => {} });
         await assert.rejects(() => client.tags('r'), /already read/);
+      } finally {
+        await server.close();
+      }
+    });
+    it('should see every page even when a cached first page lost its Link header', async () => {
+      sessionStorage.clear();
+      const paged = await createMockRegistry({ port: 0, tagPageSize: 2 });
+      try {
+        const client = new RegistryClient({ registryUrl: paged.url, onAuthentication: () => {} });
+        // The catalogue's tag count requests the same URL without an Accept
+        // header, so it primes the cache entry tags() would otherwise replay.
+        await client.request(`${paged.url}/v2/nginx/tags/list`);
+        assert.deepEqual(await client.tags('nginx'), ['1.26', '1.27', '1.27.3', 'latest', 'stable']);
+        assert.deepEqual(await client.tags('nginx'), ['1.26', '1.27', '1.27.3', 'latest', 'stable']);
+      } finally {
+        await paged.close();
+      }
+    });
+
+    it('should refuse a next link that points at another origin', async () => {
+      let victimHits = 0;
+      const victim = await serveTags(() => {
+        victimHits++;
+        return '';
+      });
+      const server = await serveTags(() => `<${victim.url}/v2/r/tags/list?last=a>; rel="next"`);
+      try {
+        const client = new RegistryClient({ registryUrl: server.url, onAuthentication: () => {} });
+        await assert.rejects(() => client.tags('r'), /could not be followed/);
+        assert.equal(victimHits, 0, 'no request may reach the other origin');
+      } finally {
+        await server.close();
+        await victim.close();
+      }
+    });
+
+    it('should refuse a next link outside the registry base path', async () => {
+      const server = await serveTags(() => '</elsewhere/tags/list?last=a>; rel="next"');
+      try {
+        const client = new RegistryClient({ registryUrl: `${server.url}/prefix`, onAuthentication: () => {} });
+        await assert.rejects(() => client.tags('r'), /could not be followed/);
+      } finally {
+        await server.close();
+      }
+    });
+
+    it('should stop after the page cap instead of paging forever', async () => {
+      let pages = 0;
+      const server = await serveTags(() => `</v2/r/tags/list?last=${++pages}>; rel="next"`);
+      try {
+        const client = new RegistryClient({ registryUrl: server.url, onAuthentication: () => {} });
+        await assert.rejects(() => client.tags('r', { maxPages: 5 }), /more than 5 pages/);
+        assert.equal(pages, 5);
       } finally {
         await server.close();
       }

@@ -366,7 +366,14 @@
             .map((value) => value.trim())
             .filter(Boolean),
         };
-        const plan = { ...planRetention(this.state.records, policy), registryUrl: this.scanRegistryUrl };
+        // Any tag that could not be inspected, or a repository whose tag list
+        // failed, makes that repository unsafe to plan: the missing record may
+        // be an index that references a candidate.
+        const unverified = new Set(this.state.scanErrors.map((failure) => failure.repository));
+        const plan = {
+          ...planRetention(this.state.records, policy, undefined, unverified),
+          registryUrl: this.scanRegistryUrl,
+        };
         // A preview opens with nothing selected. Pre-checking every candidate
         // would put a one-click path to bulk deletion behind a screen whose
         // purpose is to be read first; Select All is one click away for anyone
@@ -421,62 +428,81 @@
           this.props.onNotify(message, true);
           return;
         }
+        // The registry this plan describes, fixed now: the props can change under
+        // a long run, and the cache to purge is the one that was deleted from.
+        const planUrl = this.state.plan.registryUrl;
         this.update({ deleting: true, deleteFailures: [] });
-        const client = this.client();
-        const failures = [];
-        // One alias snapshot per repository rather than per candidate: the old
-        // shape re-listed every tag and re-read every manifest for each
-        // candidate, so deleting n candidates from a repository of m tags cost
-        // n * (m + 1) uncached requests through a six-slot pool.
-        const aliasesByRepository = new Map();
-        for (const candidate of candidates) {
-          try {
-            if (!aliasesByRepository.has(candidate.repository)) {
-              aliasesByRepository.set(candidate.repository, client.currentAliases(candidate.repository));
+        try {
+          const client = this.client();
+          const failures = [];
+          // One alias snapshot per repository rather than per candidate: the old
+          // shape re-listed every tag and re-read every manifest for each
+          // candidate, so deleting n candidates from a repository of m tags cost
+          // n * (m + 1) uncached requests through a six-slot pool.
+          const checksByRepository = new Map();
+          for (const candidate of candidates) {
+            try {
+              if (!checksByRepository.has(candidate.repository)) {
+                checksByRepository.set(candidate.repository, client.currentAliases(candidate.repository));
+              }
+              // The promise is cached, not the value, so a repository that cannot
+              // be verified fails every one of its candidates with the same error
+              // instead of retrying the same doomed reads for each.
+              this.assertPreviewStillHolds(await checksByRepository.get(candidate.repository), candidate);
+              // Residual race, unavoidable: a tag can still be pushed between the
+              // check above and this DELETE, and the registry API has no
+              // conditional (compare-and-delete) form to close it.
+              await client.deleteManifest(candidate.repository, candidate.digest);
+            } catch (error) {
+              failures.push(`${candidate.repository}: ${error.message || error}`);
             }
-            // The promise is cached, not the value, so a repository that cannot
-            // be verified fails every one of its candidates with the same error
-            // instead of retrying the same doomed reads for each.
-            this.assertPreviewStillHolds(await aliasesByRepository.get(candidate.repository), candidate);
-            await client.deleteManifest(candidate.repository, candidate.digest);
-          } catch (error) {
-            failures.push(`${candidate.repository}: ${error.message || error}`);
           }
+          const deleted = candidates.length - failures.length;
+          invalidateRegistry(planUrl);
+          // A run that deleted nothing left the registry exactly as the inventory
+          // describes it, so the plan and summary are still accurate. Clearing
+          // them unconditionally forced a full re-scan before the user could
+          // retry, which on a large registry is minutes of work thrown away.
+          this.update({
+            deleting: false,
+            confirming: false,
+            deleteFailures: failures,
+            ...(deleted > 0 ? { plan: undefined, summary: undefined } : {}),
+          });
+          if (failures.length) {
+            // The reasons are the actionable part -- "expose Docker-Content-Digest",
+            // "tags changed since the preview" -- so lead with one and render the
+            // rest above. A bare count tells the user nothing they can act on.
+            this.props.onNotify(`${deleted} of ${candidates.length} manifests deleted. ${failures[0]}`, true);
+          } else {
+            this.props.onNotify(
+              `${candidates.length} manifests deleted. Run registry garbage collection server-side to reclaim blobs.`,
+            );
+          }
+          if (deleted > 0) this.props.onRegistryChanged?.();
+        } finally {
+          // An unexpected throw must not leave the buttons disabled for good.
+          if (this.state.deleting) this.update({ deleting: false });
         }
-        const deleted = candidates.length - failures.length;
-        invalidateRegistry(this.props.registryUrl);
-        // A run that deleted nothing left the registry exactly as the inventory
-        // describes it, so the plan and summary are still accurate. Clearing
-        // them unconditionally forced a full re-scan before the user could
-        // retry, which on a large registry is minutes of work thrown away.
-        this.update({
-          deleting: false,
-          confirming: false,
-          deleteFailures: failures,
-          ...(deleted > 0 ? { plan: undefined, summary: undefined } : {}),
-        });
-        if (failures.length) {
-          // The reasons are the actionable part -- "expose Docker-Content-Digest",
-          // "tags changed since the preview" -- so lead with one and render the
-          // rest above. A bare count tells the user nothing they can act on.
-          this.props.onNotify(`${deleted} of ${candidates.length} manifests deleted. ${failures[0]}`, true);
-        } else {
-          this.props.onNotify(`${candidates.length} manifests deleted. Run registry garbage collection server-side to reclaim blobs.`);
-        }
-        if (deleted > 0) this.props.onRegistryChanged?.();
       },
       /*
        * Refuses the delete unless the tags now resolving to this digest are
-       * exactly the ones the preview showed. Deleting a manifest removes every
-       * tag pointing at it, so a tag pushed since the preview would be destroyed
-       * without ever appearing on screen. A digest that has vanished entirely
+       * exactly the ones the preview showed, and no index references it.
+       * Deleting a manifest removes every tag pointing at it, so a tag pushed
+       * since the preview would be destroyed without ever appearing on screen;
+       * and it breaks every index that lists it, including one created since
+       * (`docker buildx imagetools create`). A digest that has vanished entirely
        * also lands here, with an empty current set.
        */
-      assertPreviewStillHolds(aliases, candidate) {
+      assertPreviewStillHolds({ aliases, referenced }, candidate) {
         const current = [...(aliases.get(candidate.digest) || [])].sort();
         const preview = [...candidate.tags].sort();
         if (current.length !== preview.length || current.some((tag, index) => tag !== preview[index])) {
           throw new Error('Tags changed since the preview; re-analyze before deleting');
+        }
+        const parent = referenced.get(candidate.digest);
+        if (parent !== undefined) {
+          throw new Error(`This digest is referenced by index ${parent}; deleting it would break that index`);
         }
       },
       formatDate(value) {

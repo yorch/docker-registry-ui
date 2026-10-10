@@ -126,7 +126,15 @@
             return undefined;
           }
           for (const entry of plan.filter((candidate) => candidate.name === repositories[index])) {
-            const current = result.value.get(entry.digest) || [];
+            const parent = result.value.referenced.get(entry.digest);
+            if (parent !== undefined) {
+              onNotify(
+                `${entry.name}:${entry.images[0].tag} is referenced by index ${parent}; nothing was deleted. Delete the index first.`,
+                true,
+              );
+              return undefined;
+            }
+            const current = result.value.aliases.get(entry.digest) || [];
             const shown = tags.filter((t) => t.name === entry.name && t.contentDigest === entry.digest).map((t) => t.tag);
             if (!sameTags(current, shown)) {
               onNotify('Tags changed since this dialog was opened; nothing was deleted. Refresh and try again.', true);
@@ -136,6 +144,9 @@
         }
         return plan;
       },
+      // Residual race, unavoidable: a tag can still be pushed between the final
+      // alias check in planDeletes and this DELETE, and the registry API has no
+      // conditional (compare-and-delete) form to close it.
       async deleteDigest({ name, digest, images }) {
         const { registryUrl, ignoreError, onNotify, onAuthentication, isRegistrySecured } = this.props;
         const client = new RegistryClient({ registryUrl, onAuthentication, isRegistrySecured });

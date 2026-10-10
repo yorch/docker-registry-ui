@@ -19,6 +19,7 @@ const startProxy = async (upstream) => {
   const server = createServer(async (req, res) => {
     if (req.method === 'DELETE') {
       deletes.push(req.url);
+      handle.onDelete?.();
       if ([...failing].some((fragment) => req.url.includes(fragment))) {
         res.writeHead(500, { 'Access-Control-Allow-Origin': '*' });
         return res.end();
@@ -35,12 +36,13 @@ const startProxy = async (upstream) => {
     res.end(Buffer.from(await response.arrayBuffer()));
   });
   await new Promise((resolve) => server.listen(0, resolve));
-  return {
+  const handle = {
     url: `http://localhost:${server.address().port}`,
     deletes,
     failing,
     close: () => new Promise((resolve) => server.close(resolve)),
   };
+  return handle;
 };
 
 describe('retention executeDelete', () => {
@@ -200,6 +202,41 @@ describe('retention executeDelete', () => {
     assert.equal(proxy.deletes.length, 0);
     assert.match(instance.state.deleteFailures[0], /broken-manifest/);
     assert.match(notices.at(-1).message, /^0 of 1 manifests deleted/);
+  });
+
+  describe('failure handling', () => {
+    it('should always leave the deleting state, even when something unexpected throws', async () => {
+      await start([fixture('team/one')]);
+      const { instance } = mount();
+      await scanAndPreview(instance);
+      selectAll(instance);
+      instance.client = () => {
+        throw new Error('client exploded');
+      };
+
+      await assert.rejects(() => instance.executeDelete(), /client exploded/);
+
+      assert.equal(instance.state.deleting, false, 'the buttons must not stay disabled');
+    });
+
+    it('should invalidate the cache of the registry the plan was made for, not the current props', async () => {
+      await start([fixture('team/one')]);
+      const { instance, root } = mount();
+      await scanAndPreview(instance);
+      selectAll(instance);
+      const key = `drui:v1:url:${proxy.url}/v2/unrelated/tags/list:v:x`;
+      sessionStorage.setItem(key, JSON.stringify({ r: '{}', d: null, e: null, a: Date.now() }));
+      // The user switches registries while the DELETE is in flight.
+      proxy.onDelete = () => {
+        root.setAttribute('registry-url', 'http://other.invalid');
+        instance.update();
+      };
+
+      await instance.executeDelete();
+
+      assert.equal(instance.props.registryUrl, 'http://other.invalid');
+      assert.equal(sessionStorage.getItem(key), null, 'the planned registry cache must be purged');
+    });
   });
 
   describe('registry switch', () => {
