@@ -12,7 +12,7 @@
  */
 import assert from 'node:assert';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,8 +27,19 @@ const productionMarkup = source.split('<!-- build:keep production -->')[1].split
 
 // A scratch tree shaped like the container: <dir>/html/index.html and
 // <dir>/nginx/{nginx.conf,conf.d/default.conf}.
+const scratch = [];
+after(() => {
+  for (const dir of scratch) {
+    try {
+      chmodSync(join(dir, 'nginx', 'conf.d'), 0o755);
+    } catch {}
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 const setup = () => {
   const dir = mkdtempSync(join(tmpdir(), 'entrypoint-'));
+  scratch.push(dir);
   const html = join(dir, 'html');
   const nginx = join(dir, 'nginx');
   mkdirSync(html);
@@ -37,8 +48,10 @@ const setup = () => {
   writeFileSync(join(nginx, 'nginx.conf'), 'user  nginx;\npid /run/nginx.pid;\n');
   copyFileSync(join(root, 'nginx', 'default.conf'), join(nginx, 'conf.d', 'default.conf'));
   return {
+    dir,
     html: join(html, 'index.html'),
     conf: join(nginx, 'conf.d', 'default.conf'),
+    nginx,
     run: (env = {}) =>
       spawnSync('sh', [script], {
         cwd: html,
@@ -50,9 +63,13 @@ const setup = () => {
   };
 };
 
+const ph = (name) => `\${${name}}`;
 const attr = (html, name) => new RegExp(`(?<![-\\w])${name}="([^"]*)"`).exec(html)?.[1];
 
-describe('container entrypoint', () => {
+describe('container entrypoint', function () {
+  // Every case spawns the real script a few times (~0.3s each).
+  this.timeout(30000);
+
   describe('index.html', () => {
     it('substitutes plain values and leaves no placeholder behind', () => {
       const t = setup();
@@ -89,7 +106,11 @@ describe('container entrypoint', () => {
         [undefined, 'false'],
         ['false', 'false'],
         ['true', 'true'],
-        ['x" y', 'true'],
+        // Only the exact string `true` enables deletion, in the UI and in nginx alike.
+        ['1', 'false'],
+        ['yes', 'false'],
+        ['True', 'false'],
+        ['x" y', 'false'],
       ]) {
         const t = setup();
         const r = t.run(input === undefined ? {} : { DELETE_IMAGES: input });
@@ -142,21 +163,167 @@ describe('container entrypoint', () => {
       assert.match(r.stderr, /NGINX_PROXY_PASS_URL/);
     });
 
-    it('denies write methods on /v2 unless DELETE_IMAGES is enabled', () => {
+    it('denies only DELETE on /v2 unless DELETE_IMAGES is exactly true', () => {
       for (const [env, denied] of [
         [{}, true],
         [{ DELETE_IMAGES: 'false' }, true],
+        [{ DELETE_IMAGES: '0' }, true],
+        [{ DELETE_IMAGES: 'no' }, true],
+        [{ DELETE_IMAGES: 'FALSE' }, true],
+        [{ DELETE_IMAGES: 'True' }, true],
         [{ DELETE_IMAGES: 'true' }, false],
       ]) {
         const t = setup();
         assert.strictEqual(t.run({ ...proxied, ...env }).status, 0);
         const conf = readFileSync(t.conf, 'utf8');
         assert.strictEqual(
-          /^\s*limit_except GET HEAD OPTIONS \{ deny all; \}/m.test(conf),
+          /^\s*if \(\$request_method = DELETE\) \{ return 403; \}/m.test(conf),
           denied,
           JSON.stringify(env),
         );
+        // docker push (POST/PUT/PATCH) through the proxy is never blocked.
+        assert.doesNotMatch(conf, /limit_except/);
       }
+    });
+
+    it('rejects a placeholder in a value, which would pull in another variable', () => {
+      const t = setup();
+      const r = t.run({
+        ...proxied,
+        NGINX_PROXY_HEADER_X_Bad: `a ${ph('NGINX_RESOLVER')} b`,
+        NGINX_RESOLVER: '127.0.0.11',
+      });
+      assert.notStrictEqual(r.status, 0);
+      assert.match(r.stderr, /NGINX_PROXY_HEADER_X_Bad/);
+    });
+
+    it('accepts hyphens in header names from the environment and from .env alike', () => {
+      const t = setup();
+      writeFileSync(join(t.nginx, '.env'), 'NGINX_PROXY_HEADER_X-From-File=two\n');
+      const r = t.run({ ...proxied, 'NGINX_PROXY_HEADER_X-Forwarded-Proto': 'https' });
+      assert.strictEqual(r.status, 0, r.stderr);
+      const conf = readFileSync(t.conf, 'utf8');
+      assert.match(conf, /proxy_set_header X-Forwarded-Proto "https";/);
+      assert.match(conf, /proxy_set_header X-From-File "two";/);
+    });
+
+    it('fails the same way for an invalid name from the environment as from .env', () => {
+      const t = setup();
+      const r = t.run({ ...proxied, 'NGINX_PROXY_HEADER_X.Bad': 'v' });
+      assert.notStrictEqual(r.status, 0);
+      assert.match(r.stderr, /invalid variable name/);
+    });
+  });
+
+  describe('NGINX_LISTEN_PORT', () => {
+    it('writes a plain port and a host:port', () => {
+      for (const port of ['8081', '127.0.0.1:8081']) {
+        const t = setup();
+        assert.strictEqual(t.run({ NGINX_LISTEN_PORT: port }).status, 0);
+        assert.match(readFileSync(t.conf, 'utf8'), new RegExp(`listen       ${port};`));
+      }
+    });
+
+    it('refuses a value that is not a port, and leaves the live file untouched', () => {
+      for (const port of ['80,81', '81;x', '8 1', '81|x']) {
+        const t = setup();
+        const before = readFileSync(t.conf, 'utf8');
+        const r = t.run({ NGINX_LISTEN_PORT: port });
+        assert.notStrictEqual(r.status, 0, port);
+        assert.match(r.stderr, /NGINX_LISTEN_PORT/);
+        assert.strictEqual(readFileSync(t.conf, 'utf8'), before);
+      }
+    });
+  });
+
+  describe('values are data', () => {
+    it('does not expand another placeholder inside an index.html value', () => {
+      const t = setup();
+      const r = t.run({ APP_NAME: ph('REGISTRY_URL'), REGISTRY_URL: 'http://secret' });
+      assert.strictEqual(r.status, 0, r.stderr);
+      const html = readFileSync(t.html, 'utf8');
+      assert.strictEqual(attr(html, 'app-name'), '&#36;{REGISTRY_URL}');
+      assert.strictEqual(attr(html, 'registry-url'), 'http://secret');
+    });
+  });
+
+  describe('files the entrypoint does not own', () => {
+    const custom = 'server {\n    listen 80;\n    add_header X-Frame-Options "SAMEORIGIN";\n}\n';
+    const stat = (f) => readFileSync(f, 'utf8');
+
+    it('leaves a custom conf without markers alone, whatever the environment says', () => {
+      const t = setup();
+      writeFileSync(t.conf, custom);
+      const r = t.run({ CONTENT_SECURITY_POLICY: "default-src 'self'", NGINX_PROXY_PASS_URL: 'http://r:5000' });
+      assert.strictEqual(r.status, 0, r.stderr);
+      assert.strictEqual(stat(t.conf), custom);
+    });
+
+    it("keeps a custom conf with markers but never deletes the user's own X-Frame-Options", () => {
+      const t = setup();
+      const conf = `${custom}# \${CONTENT_SECURITY_POLICY}\n`;
+      writeFileSync(t.conf, conf);
+      assert.strictEqual(t.run({ CONTENT_SECURITY_POLICY: "default-src 'self'" }).status, 0);
+      assert.match(stat(t.conf), /X-Frame-Options "SAMEORIGIN"/);
+    });
+
+    it('does not fail on a read-only conf: it warns and goes on', function () {
+      if (process.getuid?.() === 0) this.skip();
+      const t = setup();
+      const before = stat(t.conf);
+      chmodSync(t.conf, 0o444);
+      chmodSync(dirname(t.conf), 0o555);
+      const r = t.run({ APP_NAME: 'x' });
+      assert.strictEqual(r.status, 0, r.stderr);
+      assert.match(r.stderr, /default\.conf/);
+      assert.strictEqual(stat(t.conf), before);
+      assert.strictEqual(attr(stat(t.html), 'app-name'), 'x');
+    });
+
+    it('does not even warn about a read-only custom conf that needs no rendering', function () {
+      if (process.getuid?.() === 0) this.skip();
+      const t = setup();
+      writeFileSync(t.conf, custom);
+      chmodSync(t.conf, 0o444);
+      chmodSync(dirname(t.conf), 0o555);
+      const r = t.run({});
+      assert.strictEqual(r.status, 0, r.stderr);
+      assert.strictEqual(r.stderr, '');
+    });
+
+    it('does not fail on a read-only index.html', function () {
+      if (process.getuid?.() === 0) this.skip();
+      const t = setup();
+      chmodSync(t.html, 0o444);
+      chmodSync(dirname(t.html), 0o555);
+      try {
+        const r = t.run({ APP_NAME: 'x' });
+        assert.strictEqual(r.status, 0, r.stderr);
+        assert.match(r.stderr, /index\.html/);
+      } finally {
+        chmodSync(dirname(t.html), 0o755);
+      }
+    });
+
+    it('treats a host edit between restarts as the new pristine copy', () => {
+      const t = setup();
+      assert.strictEqual(t.run({ APP_NAME: 'one' }).status, 0);
+      const edited = `${stat(t.conf)}\n# edited on the host, with a \${CONTENT_SECURITY_POLICY} marker\n`;
+      writeFileSync(t.conf, edited);
+      assert.strictEqual(t.run({ APP_NAME: 'two' }).status, 0);
+      assert.match(stat(t.conf), /edited on the host/);
+      // and it is rendered from there on, not overwritten with the stale copy
+      assert.doesNotMatch(stat(t.conf), /with a \$\{CONTENT/);
+      assert.strictEqual(t.run({}).status, 0);
+      assert.match(stat(t.conf), /edited on the host/);
+    });
+
+    it('keeps a host edit that has no markers', () => {
+      const t = setup();
+      assert.strictEqual(t.run({}).status, 0);
+      writeFileSync(t.conf, custom);
+      assert.strictEqual(t.run({}).status, 0);
+      assert.strictEqual(stat(t.conf), custom);
     });
   });
 
