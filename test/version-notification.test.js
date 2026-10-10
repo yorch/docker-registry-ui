@@ -98,7 +98,10 @@ describe('version notification', () => {
   };
 
   it('should link to an https release page', () => {
-    assert.equal(releaseHref('https://github.com/yorch/docker-registry-ui/releases/tag/2.0.0'), 'https://github.com/yorch/docker-registry-ui/releases/tag/2.0.0');
+    assert.equal(
+      releaseHref('https://github.com/yorch/docker-registry-ui/releases/tag/2.0.0'),
+      'https://github.com/yorch/docker-registry-ui/releases/tag/2.0.0',
+    );
   });
 
   it('should not render a non-https release url as a link target', () => {

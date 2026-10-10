@@ -6,9 +6,9 @@
 import assert from 'node:assert';
 import { component, register, unregister } from 'riot';
 import AppDialog from '../src/components/app-dialog.riot';
-import TextField from '../src/components/text-field.riot';
 import AddRegistryUrl from '../src/components/dialogs/add-registry-url.riot';
 import RegistryMenu from '../src/components/dialogs/registry-menu.riot';
+import TextField from '../src/components/text-field.riot';
 
 const mount = (Component, props) => {
   const root = document.createElement('div');
