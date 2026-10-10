@@ -16,3 +16,8 @@ _site
 dist
 site/_build
 tmp/
+
+# Runtime state and dev secrets under examples/ (generated when you run them)
+examples/token-auth-keycloak/data/
+examples/token-auth-keycloak/conf/registry/localhost.key
+examples/traefik/acme.json
