@@ -143,3 +143,14 @@ describe('verified cache entries carry the verified digest (review of PR 27)', (
     assert.equal(getFromCache('GET', other)?.dockerContentdigest, digest);
   });
 });
+
+describe('cosign tag sharing a digest with a real tag (second review of PR 27)', () => {
+  it('should protect the real tag instead of offering a delete that would take the cosign tag too', () => {
+    const subject = 'c'.repeat(64);
+    const records = [image('v1', d(1), OLDER), image(`sha256-${subject}`, d(1), OLDER)];
+    const plan = planRetention(records, policy(0), NOW);
+    assert.deepEqual(candidateTags(plan), []);
+    const entry = plan.skipped.find((e) => e.tags.includes('v1'));
+    assert.match(entry.reason, /Cosign/);
+  });
+});

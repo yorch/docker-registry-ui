@@ -114,6 +114,12 @@ export const planRetention = (
   });
 
   byRepository.forEach((repositoryRecords, repository) => {
+    // Deleting a manifest removes every tag on it, cosign ones included, so a
+    // real tag sharing a digest with a cosign tag is protected, not offered.
+    const cosignDigests = new Map();
+    repositoryRecords.forEach((record) => {
+      if (cosignRecords.has(record) && record.digest) cosignDigests.set(record.digest, record.tag);
+    });
     const sorted = repositoryRecords.filter((record) => !cosignRecords.has(record)).sort(byNewest);
     const verdicts = [];
     const referenced = new Map();
@@ -145,6 +151,7 @@ export const planRetention = (
         .filter(
           ([digest, aliases]) =>
             !referenced.has(digest) &&
+            !cosignDigests.has(digest) &&
             !aliases.some((record) => patterns.some((pattern) => pattern.test(record.tag))) &&
             aliases.every((record) => reliableTime(record.created) !== undefined),
         )
@@ -156,19 +163,22 @@ export const planRetention = (
       const newestTag = keptDigests.has(digest) ? aliases[0] : undefined;
       const missingDate = aliases.find((record) => reliableTime(record.created) === undefined);
       const recentTag = aliases.find((record) => reliableTime(record.created) >= cutoff);
-      const blocked = protectedTag || newestTag || missingDate || recentTag;
+      const cosignShared = cosignDigests.get(digest);
+      const blocked = cosignShared || protectedTag || newestTag || missingDate || recentTag;
       if (blocked) {
         skipped.push({
           repository,
           digest,
           tags: aliases.map((record) => record.tag),
-          reason: protectedTag
-            ? `Protected tag: ${protectedTag.tag}`
-            : newestTag
-              ? `Kept among newest: ${newestTag.tag}`
-              : missingDate
-                ? `No reliable build date: ${missingDate.tag}`
-                : `Newer than cutoff: ${recentTag.tag}`,
+          reason: cosignShared
+            ? `Cosign tag on the same digest: ${cosignShared}`
+            : protectedTag
+              ? `Protected tag: ${protectedTag.tag}`
+              : newestTag
+                ? `Kept among newest: ${newestTag.tag}`
+                : missingDate
+                  ? `No reliable build date: ${missingDate.tag}`
+                  : `Newer than cutoff: ${recentTag.tag}`,
         });
         return;
       }
