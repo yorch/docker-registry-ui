@@ -65,6 +65,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           catalog-default-expanded="{ props.catalogDefaultExpanded }"
           is-registry-secured="{ props.isRegistrySecured }"
           each="{ item in state.repositories }"
+          key="{ item.namespace ? 'ns:' + item.namespace : item }"
           item="{ item }"
         ></catalog-element>
       </div>
@@ -76,21 +77,29 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
     export default {
       onBeforeMount(props, state) {
-        if (props.item.repositories && props.item.repositories.length === 1) {
-          state.repository = props.item.repositories[0];
-        } else if (typeof props.item === 'string') {
-          state.repository = props.item;
-        } else if (props.item.repositories && props.item.namespace) {
-          state.repositories = props.item.repositories;
-          state.namespace = props.item.namespace;
-          state.expanded = props.catalogDefaultExpanded;
-        }
+        state.expanded = props.catalogDefaultExpanded;
         this.sync(props, state);
       },
       onBeforeUpdate(props, state) {
         this.sync(props, state);
       },
+      // Runs before every render, not only the first: a keyed namespace node
+      // survives a change to its children, and a node that was a lone
+      // repository can become a folder (or the reverse) when a page is loaded.
       sync(props, state) {
+        if (props.item.repositories && props.item.repositories.length === 1) {
+          state.repository = props.item.repositories[0];
+          state.repositories = undefined;
+          state.namespace = undefined;
+        } else if (typeof props.item === 'string') {
+          state.repository = props.item;
+          state.repositories = undefined;
+          state.namespace = undefined;
+        } else if (props.item.repositories && props.item.namespace) {
+          state.repository = undefined;
+          state.repositories = props.item.repositories;
+          state.namespace = props.item.namespace;
+        }
         if (props.showCatalogNbTags && state.repository) {
           state.nbTags = props.counts && props.counts[state.repository];
         }

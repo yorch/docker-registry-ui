@@ -1,0 +1,24 @@
+<stale-ui-catalog-host>
+  <catalog
+    registry-url="{ state.registryUrl }"
+    catalog-elements-limit="{ props.limit || 1000 }"
+    on-notify="{ () => {} }"
+    on-clear-page-error="{ () => {} }"
+    on-authentication="{ () => {} }"
+    filter-results=""
+    show-catalog-nb-tags="{ false }"
+    catalog-default-expanded="{ true }"
+    is-registry-secured="{ false }"
+    is-image-remove-activated="{ false }"
+  ></catalog>
+  <script>
+    import Catalog from '../../src/components/catalog/catalog.riot';
+    // Stands in for the app shell, which swaps the registry-url prop on a mounted <catalog>.
+    export default {
+      components: { Catalog },
+      onBeforeMount(props) {
+        this.state = { registryUrl: props.registryUrl };
+      },
+    };
+  </script>
+</stale-ui-catalog-host>

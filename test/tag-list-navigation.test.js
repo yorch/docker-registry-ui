@@ -60,7 +60,9 @@ describe('tag list navigation', function () {
     assert.equal(tagsShown(root).length, 5, 'precondition: nginx has five tags');
 
     host.update({ image: 'oci-index' });
-    for (let i = 0; i < 100 && tagsShown(root).length === 5; i++) {
+    // Not `length === 5`: the old rows are now cleared at once, so that condition
+    // is met before the new repository has answered.
+    for (let i = 0; i < 100 && tagsShown(root).length !== 2; i++) {
       await wait(50);
     }
     assert.deepEqual(tagsShown(root), ['latest', 'v3'], 'the new repository’s tags should be shown');

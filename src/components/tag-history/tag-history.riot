@@ -86,16 +86,39 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           useControlCacheHeader: props.useControlCacheHeader,
           isRegistrySecured: props.isRegistrySecured,
         });
-        state.image.fillInfo();
-      },
-      onMounted(props, state) {
+        // Subscribed before fillInfo(): a cache hit replays the response
+        // synchronously, so its events fire inside that call and anyone not
+        // listening yet misses them for good, leaving the spinner up forever.
         state.image.on('blobs', this.processBlobs);
         state.image.on('list', this.multiArchList);
+        state.image.fillInfo();
+        // And whatever the image already holds, in case it was filled earlier.
+        if (!state.loadend) {
+          if (state.image.manifests) {
+            this.multiArchList(state.image.manifests);
+          } else if (state.image.blobs) {
+            this.processBlobs(state.image.blobs);
+          }
+        }
+      },
+      onMounted() {
+        this.mounted = true;
+      },
+      // Handlers can run before the first render, when update() is not allowed
+      // yet; the state they set is then simply what the first render shows.
+      apply(patch) {
+        if (this.mounted) {
+          this.update(patch);
+        } else {
+          Object.assign(this.state, patch);
+        }
       },
       onTabChanged(arch, idx) {
         const state = this.state;
         const { registryUrl, onNotify, onAuthentication, useControlCacheHeader, isRegistrySecured } = this.props;
         state.elements = [];
+        // 'list' fires before DockerImage assigns `variants`, so it may not exist yet.
+        state.image.variants = state.image.variants || [];
         state.image.variants[idx] =
           state.image.variants[idx] ||
           new DockerImage(this.props.image, arch.digest, {
@@ -132,7 +155,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         blobs.history.forEach(function (elt, i) {
           elements[blobs.history.length - i] = exec(elt);
         });
-        this.update({
+        this.apply({
           elements,
           loadend: true,
         });
@@ -149,7 +172,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
             digest: manifest.digest,
           };
         });
-        this.update({
+        this.apply({
           archs,
         });
         if (archs.length) this.onTabChanged(archs[0], 0);
