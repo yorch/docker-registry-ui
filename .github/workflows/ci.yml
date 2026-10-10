@@ -80,5 +80,32 @@ jobs:
           build-args: |
             COMMIT_HASH=${{ github.sha }}
           push: false
+          load: true
+          tags: registry-ui-ci:${{ matrix.name }}
           cache-from: type=gha,scope=ci-${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=ci-${{ matrix.name }}
+      # The proxy upstream is unreachable on purpose: a 403 can only come from
+      # nginx's own rule, and a 502 proves the request got past it.
+      - name: Smoke test ${{ matrix.name }} (proxy rules and headers)
+        run: |
+          set -eu
+          code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+          run() {
+            docker rm -f ui >/dev/null 2>&1 || true
+            docker run -d --name ui -p 8080:80 -e NGINX_PROXY_PASS_URL=http://127.0.0.1:9 "$@" registry-ui-ci:${{ matrix.name }} >/dev/null
+            for i in $(seq 1 30); do [ "$(code http://localhost:8080/)" = 200 ] && return 0; sleep 1; done
+            docker logs ui; exit 1
+          }
+          expect() { [ "$1" = "$2" ] || { echo "FAIL: $3: expected $2, got $1"; docker logs ui; exit 1; }; }
+          run
+          expect "$(code -X DELETE http://localhost:8080/v2/x/manifests/sha256:0)" 403 "DELETE without DELETE_IMAGES"
+          expect "$(code -X POST http://localhost:8080/v2/x/blobs/uploads/)" 502 "POST passes through"
+          expect "$(code http://localhost:8080/v2/)" 502 "GET passes through"
+          curl -sI http://localhost:8080/ | grep -qi '^x-content-type-options: nosniff' || { echo "FAIL: nosniff header missing"; exit 1; }
+          curl -sI http://localhost:8080/ | grep -qi '^content-security-policy:' || { echo "FAIL: CSP header missing"; exit 1; }
+          run -e DELETE_IMAGES=true
+          expect "$(code -X DELETE http://localhost:8080/v2/x/manifests/sha256:0)" 502 "DELETE with DELETE_IMAGES=true"
+          docker restart ui >/dev/null
+          for i in $(seq 1 30); do [ "$(code http://localhost:8080/)" = 200 ] && break; sleep 1; done
+          expect "$(code -X DELETE http://localhost:8080/v2/x/manifests/sha256:0)" 502 "DELETE after restart"
+          docker rm -f ui >/dev/null
