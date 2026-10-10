@@ -116,6 +116,31 @@ describe('repositories', () => {
     });
   });
 
+  describe('getBranching tree shape', () => {
+    // The tree used to depend on whether a shorter namespace happened to sort
+    // before a longer one it contains.
+    it('should nest a deeper namespace under its parent whichever sorts first', () => {
+      const branching = getBranching(1, 2);
+      const expected = [
+        {
+          namespace: 'a/',
+          repositories: [{ namespace: 'a/b/', repositories: ['a/b/x'] }, 'a/c'],
+        },
+      ];
+      assert.deepEqual(branching(['a/b/x', 'a/c']), expected);
+      const nested = branching(['a/aa', 'a/b/x']);
+      assert.deepEqual(nested, [
+        { namespace: 'a/', repositories: ['a/aa', { namespace: 'a/b/', repositories: ['a/b/x'] }] },
+      ]);
+    });
+
+    it('should not depend on input order', () => {
+      const names = ['a/b/x', 'a/c', 'a/b/y', 'a/b-z/q', 'a/d/e/f', 'solo'];
+      const reference = JSON.stringify(getBranching(1, 3)([...names]));
+      assert.equal(JSON.stringify(getBranching(1, 3)([...names].reverse())), reference);
+    });
+  });
+
   it('should branch from one to two level', () => {
     assert.throws(() => getBranching(2, 1), DockerRegistryUIError, `Did not throw on min > max`);
     assert.throws(() => getBranching(-2, 1), DockerRegistryUIError, `Did not throw on min < 0`);

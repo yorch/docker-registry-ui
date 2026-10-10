@@ -36,6 +36,7 @@ This web user interface uses [Riot](https://github.com/Riot/riot) the react-like
 Images are published to [`ghcr.io/yorch/docker-registry-ui`](https://github.com/yorch/docker-registry-ui/pkgs/container/docker-registry-ui).
 
 * `latest`: image with the latest release of Registry Explorer based on `nginx:alpine`
+* `debian`: alias of `latest-debian`
 * `latest-debian`: image with the latest release of Registry Explorer based on `nginx:debian`
 * `main`: image with the beta version of Registry Explorer based on `nginx:alpine`
 * `main-debian`: image with the beta version of Registry Explorer based on `nginx:debian`
@@ -89,7 +90,7 @@ Two things follow from that:
 - Share your Registry Explorer instance when you are deploying a UI with `SINGLE_REGISTRY=false`.
   - Point any deployed instance at a registry with the `url` query parameter (e.g. `https://ui.example.com?url=https://registry.example.com`). The registry must allow CORS from wherever the UI is served. This fork does not host a public instance, so unlike upstream there is no shared demo URL to use here.
   - You can use a single interface with many registry, add them in the menu in the top right of the page.
-- Filter images and tags with the search bar.
+- Filter repositories and tags with the search bar.
   - You can select the search bar with the shortcut `CRTL + F` or `F3`. When the search bar is already focused, the shortcut will fallback to the default behavior (see [#213](https://github.com/Joxit/docker-registry-ui/issues/213)). Since 2.1.0
 - Multi arch support in history page (see [#130](https://github.com/Joxit/docker-registry-ui/issues/130) and [#134](https://github.com/Joxit/docker-registry-ui/pull/134)). Since 1.5.0
 - Show the content of the dockerfile (see [#286](https://github.com/Joxit/docker-registry-ui/pull/286)). Since 2.4.0
@@ -101,8 +102,8 @@ Checkout all options in [Available options](#available-options) section.
 
 -   What is the difference between **`SINGLE_REGISTRY=false`** and **`SINGLE_REGISTRY=true`** options ?
     -   When `SINGLE_REGISTRY` is set to false, a menu appears on the interface allowing you to dynamically change docker registry URLs.
--   Why, when I delete all tags of an image, the image is still in the UI ?
-    -   This is a limitation of docker registry, the garbage collector don't remove empty images. If you want to delete dangling images, you will need to delete the folder in your registry data. (see [#77](https://github.com/Joxit/docker-registry-ui/issues/77))
+-   Why, when I delete all tags of a repository, the repository is still in the UI ?
+    -   This is a limitation of docker registry, the garbage collector don't remove empty repositories. If you want to delete dangling images, you will need to delete the folder in your registry data. (see [#77](https://github.com/Joxit/docker-registry-ui/issues/77))
 -   Why the image size in the UI is not the same as displayed during `docker images` ?
     -   The UI displays the compressed size of the image and not the extracted size version.
 -   Can I use HTTPS on the UI ?
@@ -130,7 +131,7 @@ Checkout all options in [Available options](#available-options) section.
 -   How to fix CORS issue on s3 bucket ?
     - You should add a CORS Policy on your bucket, check the issue [#193](https://github.com/Joxit/docker-registry-ui/issues/193).
 -   Why my docker registry server is returning an error `pagination number invalid` ?
-    - Since docker registry server 2.8.2 there is default limit of 1000 images in catalog. If you need more images update the configuration `REGISTRY_CATALOG_MAXENTRIES` with your max value and check the issue [#306](https://github.com/Joxit/docker-registry-ui/issues/306).
+    - Since docker registry server 2.8.2 there is default limit of 1000 repositories in catalog. If you need more repositories update the configuration `REGISTRY_CATALOG_MAXENTRIES` with your max value and check the issue [#306](https://github.com/Joxit/docker-registry-ui/issues/306).
 -   I'm using `NGINX_PROXY_PASS_URL`, my registry server has been recreated and the UI cannot connect with the message `[error] 176#176: *2 connect() failed (111: Connection refused) while connecting to upstream`, what can I do?
     - Nginx get the IP of all addresses only once at runtime, since your container has been recreated, its IP changed too. To prevent this kind of issue, you may use the option `NGINX_RESOLVER` and set to `127.0.0.11`.
 
@@ -156,7 +157,7 @@ Some env options are available for use this interface for **only one server** (w
 - `NGINX_RESOLVER`: Add [`resolver`](http://nginx.org/en/docs/http/ngx_http_core_module.html#resolver) directive to the nginx configuration for dynamic dns resolving. The value when you are using a docker network is `127.0.0.11`, you can set a custom DNS server too with a valid time. This is not needed when you are using kubernetes. (see [#333](https://github.com/Joxit/docker-registry-ui/issues/333) and [#339](https://github.com/Joxit/docker-registry-ui/issues/339)). (default: ``). Since 2.5.5
 - `DEFAULT_REGISTRIES`: List of comma separated registry URLs (e.g `http://registry.example.com,http://registry:5000`), available only when `SINGLE_REGISTRY=false` (see [#219](https://github.com/Joxit/docker-registry-ui/pull/219)). (default: ` `). Registries listed here are trusted for cross-origin token servers (see `REGISTRY_URL`). Since 2.1.0
 - `READ_ONLY_REGISTRIES`: Deactivate dialog for remove and add new registries, available only when `SINGLE_REGISTRY=false` (see [#219](https://github.com/Joxit/docker-registry-ui/pull/219)). (default: `false`). Since 2.1.0
-- `SHOW_CATALOG_NB_TAGS`: Show number of tags per image on the catalog page. Tag counts are fetched in the background and the badges fill in as each count loads. Set to `false` on very large registries to skip the extra tag-count requests and hide the badges (see [#161](https://github.com/Joxit/docker-registry-ui/issues/161) and [#239](https://github.com/Joxit/docker-registry-ui/pull/239)). (default: `true`). Since 2.2.0
+- `SHOW_CATALOG_NB_TAGS`: Show number of tags per repository on the catalog page. Tag counts are fetched in the background and the badges fill in as each count loads. Set to `false` on very large registries to skip the extra tag-count requests and hide the badges (see [#161](https://github.com/Joxit/docker-registry-ui/issues/161) and [#239](https://github.com/Joxit/docker-registry-ui/pull/239)). (default: `true`). Since 2.2.0
 - `HISTORY_CUSTOM_LABELS`: Expose custom labels in history page, custom labels will be processed like maintainer label (see [#160](https://github.com/Joxit/docker-registry-ui/issues/160) and [#240](https://github.com/Joxit/docker-registry-ui/pull/240)). Since 2.2.0
 - `USE_CONTROL_CACHE_HEADER`: Use `Control-Cache` header and set to `no-store, no-cache`. This will avoid some issues on multi-arch images (see [#260](https://github.com/Joxit/docker-registry-ui/issues/260) and [#265](https://github.com/Joxit/docker-registry-ui/pull/265)). This option requires registry configuration: `Access-Control-Allow-Headers` with `Cache-Control`. (default: `false`). Since 2.3.0
 - `THEME`: Chose your default theme, could be `dark`, `light` or `auto` (see [#283](https://github.com/Joxit/docker-registry-ui/pull/283)). When auto is selected, you will have a switch to manually change from light to dark and vice-versa (see [#291](https://github.com/Joxit/docker-registry-ui/pull/291)). (default: `auto`). Since 2.4.0
@@ -168,13 +169,14 @@ Some env options are available for use this interface for **only one server** (w
 - `TAGLIST_PAGE_SIZE`: Set the number of tags to display in one page. (default: `100`). Since 2.5.0
 - `REGISTRY_SECURED`: By default, the UI will check on every requests if your registry is secured or not (you will see `401` responses in your console). Set to `true` if your registry uses Basic Authentication and divide by two the number of call to your registry. (default `false`). Since 2.5.0
 - `SHOW_TAG_HISTORY`: Whether to show the tag history feature or not. Allows to simplify the user interface by hiding it form the tag list if set to `false`. (default: `true`).
-There are some examples with [docker-compose](https://docs.docker.com/compose/) and docker-registry-ui as proxy [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-proxy/) or docker-registry-ui as standalone [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-standalone/).
 - `APP_NAME`: A custom name for **the application**, shown in the header bar. Distinct from `REGISTRY_TITLE`, which names the registry you are browsing. (default: `Registry Explorer`). Since 3.2.0, replacing `DOCKER_REGISTRY_UI_TITLE`.
 - `ENABLE_VERSION_NOTIFICATION`: Display notification when a new version of Registry Explorer is available. This is a weekly check. (default: `true`).
 
+There are some examples with [docker-compose](https://docs.docker.com/compose/) and the UI as a proxy [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-proxy/) or the UI as standalone [here](https://github.com/yorch/docker-registry-ui/tree/main/examples/ui-as-standalone/).
+
 ### Theme options
 
-The default palettes follow a modern SaaS look (neutral surfaces + green accent). The `THEME_*` variables override the corresponding design token; defaults come from `src/styles/tokens.scss`.
+The default palettes follow a modern SaaS look (neutral surfaces + green accent). The `THEME_*` variables override the corresponding design token; defaults come from `src/styles/tokens.scss`, except the `--header-*` and `--footer-*` rows, whose defaults are the fallbacks written into `src/styles/layout.scss`. The theme toggle remembers an explicit choice in `localStorage`; with `THEME=auto` and no choice made the OS preference is followed on every visit.
 
 | Environment variable | design token | light theme value | dark theme value |
 | --- | --- | --- | --- |
@@ -187,7 +189,7 @@ The default palettes follow a modern SaaS look (neutral surfaces + green accent)
 | `THEME_HEADER_ACCENT_TEXT` | `--header-accent-text` | `#475569` | `#9fb2c8` |
 | `THEME_HEADER_BACKGROUND` | `--header-background` | `#ffffff` | `#111a2c` |
 | `THEME_FOOTER_TEXT` | `--footer-text` | `#475569` | `#9fb2c8` |
-| `THEME_FOOTER_NEUTRAL_TEXT` | `--footer-neutral-text` | `#8b96a5` | `#667b99` |
+| `THEME_FOOTER_NEUTRAL_TEXT` | `--footer-neutral-text` | `#5b6676` | `#8497b3` |
 | `THEME_FOOTER_BACKGROUND` | `--footer-background` | `#ffffff` | `#111a2c` |
 
 ## Recommended Docker Registry Usage

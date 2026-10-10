@@ -54,12 +54,12 @@
 }
 
 .btn--danger {
-  background-color: var(--danger);
+  background-color: var(--danger-bg);
   color: var(--on-danger);
 }
 
 .btn--danger:hover:not(:disabled) {
-  background-color: var(--danger-hover);
+  background-color: var(--danger-bg-hover);
   color: var(--on-danger);
 }
 
@@ -109,7 +109,7 @@
   display: flex;
   align-items: center;
   background-color: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   transition:
     border-color var(--dur-fast) var(--ease-out),
@@ -306,6 +306,11 @@
   animation: dialog-in var(--dur-normal) var(--ease-out);
 }
 
+/* Focused by script when the body has no control to land on; not a tab stop. */
+.dialog:focus {
+  outline: none;
+}
+
 .dialog--wide {
   width: min(94vw, 820px);
 }
@@ -360,7 +365,7 @@
 }
 
 .snackbar.is-error {
-  background-color: var(--danger);
+  background-color: var(--danger-bg);
   color: var(--on-danger);
 }
 

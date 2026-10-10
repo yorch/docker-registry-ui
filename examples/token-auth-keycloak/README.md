@@ -19,6 +19,8 @@ In this image, we will replace the docker client/daemon by the Registry Explorer
 
 :warning: If you are configuring from scratch your own keycloak server, remove files in `data` folder first with certificates in `conf/registry/localhost.*` 
 
+:information_source: The Keycloak database (`data/keycloak/`) and the private key `conf/registry/localhost.key` are no longer committed, so this example always starts from scratch: create your own realm key and export its certificate into `conf/registry/localhost_trust_chain.pem` (the committed `localhost.crt` and `.pem` belong to the old, discarded realm and will not match). For `examples/traefik`, `run-swarm.sh` creates `acme.json` itself.
+
 ## Configure your nginx/proxy server
 
 I will highlight required configuration for Basic Access Authentication Protocol. Replace the `{realm name}` by the name of your realm. In my example the realm is master, but you should create your own realm for your users.

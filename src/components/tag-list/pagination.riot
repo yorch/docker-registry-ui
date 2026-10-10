@@ -1,17 +1,47 @@
+<!--
+Copyright (C) 2016-2023 Jones Magloire @Joxit
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 <pagination>
-  <div class="pagination">
+  <nav class="pagination" aria-label="Pagination">
     <button
       each="{ (p, idx) in props.pages }"
       class="btn btn--sm { p.current ? 'is-current' : '' }"
       onclick="{(e) => props.onPageUpdate(idx)}"
-      aria-label="page-{ p.page }"
+      aria-label="{ pageLabel(p) }"
       aria-current="{ p.current ? 'page' : null }"
       type="button"
     >
-      <i if="{ p.icon }" class="material-icons">{ p.icon }</i>
+      <i if="{ p.icon }" class="material-icons" aria-hidden="true">{ p.icon }</i>
       <template if="{ !p.icon }">{ p.page }</template>
     </button>
-  </div>
+  </nav>
+  <script>
+    const ICON_LABELS = {
+      first_page: 'First page',
+      chevron_left: 'Previous page',
+      chevron_right: 'Next page',
+      last_page: 'Last page',
+    };
+
+    export default {
+      pageLabel(p) {
+        return ICON_LABELS[p.icon] || `Page ${p.page}`;
+      },
+    };
+  </script>
   <style>
     :host .pagination {
       display: flex;

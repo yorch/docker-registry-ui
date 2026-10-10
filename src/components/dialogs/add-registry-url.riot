@@ -45,7 +45,7 @@
           return this.props.onNotify('The input field should not end with /v2, the UI appends it itself.', true);
         }
         const url = addRegistryServers(input.value);
-        router.home();
+        router.goHome();
         this.props.onServerChange(url);
         this.props.onClose();
         setTimeout(() => router.updateUrlQueryParam(url), 100);

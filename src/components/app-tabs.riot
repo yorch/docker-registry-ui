@@ -1,10 +1,14 @@
 <app-tabs>
-  <div class="tabs" role="tablist" aria-label="{ props.ariaLabel || 'Tabs' }">
+  <!--
+    Not role=tablist: that promises arrow-key navigation, a roving tabindex and
+    a tabpanel each tab controls, none of which this has. A labelled group of
+    toggle buttons says only what is true.
+  -->
+  <div class="tabs" role="group" aria-label="{ props.ariaLabel || 'Tabs' }">
     <button
       each="{ (tab, idx) in props.tabs }"
       class="tab { idx === state.selected ? 'is-active' : '' }"
-      role="tab"
-      aria-selected="{ idx === state.selected }"
+      aria-pressed="{ idx === state.selected }"
       onclick="{ () => select(idx) }"
       title="{ tab.title || tab }"
       type="button"

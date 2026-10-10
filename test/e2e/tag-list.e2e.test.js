@@ -249,7 +249,9 @@ describe('tag list in a browser', function () {
     // namespace, so these two counts must not agree. Reporting the same number
     // twice is exactly the bug the renamed labels are meant to make obvious.
     assert.ok(repositories > namespaces, `expected fewer namespaces than repositories, got "${stats.trim()}"`);
-    assert.equal(repositories - namespaces, 1, 'only the two team/* repositories collapse into one namespace');
+    // Bare repositories (`nginx`, `redis`) belong to no namespace, so the only
+    // namespace in the mock catalog is `team/`.
+    assert.equal(namespaces, 1, 'only team/ is a namespace; bare repositories are not counted as one');
 
     // "Namespace" is this UI's own term -- the registry has no such concept --
     // so each badge has to explain itself in place.
@@ -282,17 +284,49 @@ describe('tag list in a browser', function () {
     assert.equal(await page.$$eval('pagination button, pagination a', (els) => els.length), 0);
   });
 
-  it('should bypass cached tag data when the user refreshes', async () => {
+  // The previous version only waited for a tags/list request, which is always
+  // fetched fresh (the list is paginated), so it passed whether or not the
+  // manifest cache was bypassed. Manifests are what the cache actually holds,
+  // so count those, and prove the cache is live first: with no control, "no
+  // request was made" could just mean nothing was requested at all.
+  it('should bypass cached manifests when the user refreshes', async () => {
+    const manifestRequests = [];
+    page.on('request', (request) => {
+      if (request.method() === 'GET' && /\/v2\/nginx\/manifests\//.test(request.url())) {
+        manifestRequests.push(request.url());
+      }
+    });
     await openTagList('nginx');
-    const refetch = page.waitForRequest((request) => request.url().endsWith('/v2/nginx/tags/list'));
+    await page.waitForFunction(
+      () => [...document.querySelectorAll('tag-table tbody .image-size')].every((e) => /\d/.test(e.textContent)),
+      { timeout: 60000 },
+    );
+    assert.ok(manifestRequests.length > 0, 'the first visit must fetch manifests from the registry');
+
+    // Control: a reload within the cache lifetime is served from the cache.
+    manifestRequests.length = 0;
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForFunction(
+      () => [...document.querySelectorAll('tag-table tbody .image-size')].every((e) => /\d/.test(e.textContent)),
+      { timeout: 60000 },
+    );
+    assert.deepEqual(manifestRequests, [], 'without a refresh the manifests should come from the cache');
+
+    // Refresh must go back to the registry for the same manifests.
     await page.getByRole('button', { name: 'Refresh tags' }).click();
-    await refetch;
     await page.waitForFunction(() => !document.querySelector('tag-list .refresh-status'));
+    await page.waitForFunction(
+      () => [...document.querySelectorAll('tag-table tbody .image-size')].every((e) => /\d/.test(e.textContent)),
+      { timeout: 60000 },
+    );
+    assert.ok(manifestRequests.length > 0, 'refresh should bypass the cache and fetch manifests again');
     assert.deepEqual(await tagsOn(page), ['1.26', '1.27', '1.27.3', 'latest', 'stable']);
   });
 
   it('should wait for deletion to finish before refreshing the list', async () => {
-    await openTagList('nginx');
+    // Dedicated fixture: deleting from nginx would change what every later test
+    // (and every rerun against a long-lived server) sees there.
+    await openTagList('deletable');
     const deleteButton = page.locator('remove-image button').first();
     await page.waitForFunction(() => {
       const button = document.querySelector('remove-image button');

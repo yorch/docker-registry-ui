@@ -290,14 +290,15 @@ export class RegistryClient {
       throw new Error(`Index ${repository}@${root.digest} is nested more than ${MAX_INDEX_DEPTH} levels deep`);
     }
     const references = new Set();
-    const leaves = [];
     visited.add(root.digest);
-    await Promise.all(
+    // Each child resolves to its own leaves and they are joined afterwards, so
+    // the order follows the index and not whichever fetch finished first.
+    const perChild = await Promise.all(
       (root.manifests || []).map(async (descriptor) => {
-        if (!descriptor.digest) return;
+        if (!descriptor.digest) return [];
         references.add(descriptor.digest);
-        if (isAttestation(descriptor) || visited.has(descriptor.digest)) return;
-        if (!fetchLeaves && !INDEX_TYPES.has(descriptor.mediaType)) return;
+        if (isAttestation(descriptor) || visited.has(descriptor.digest)) return [];
+        if (!fetchLeaves && !INDEX_TYPES.has(descriptor.mediaType)) return [];
         visited.add(descriptor.digest);
         const manifest = await this.manifest(repository, descriptor.digest, { noCache });
         if (isIndexManifest(manifest)) {
@@ -308,13 +309,12 @@ export class RegistryClient {
             depth: depth + 1,
           });
           nested.references.forEach((digest) => references.add(digest));
-          leaves.push(...nested.leaves);
-        } else {
-          leaves.push({ descriptor, manifest });
+          return nested.leaves;
         }
+        return [{ descriptor, manifest }];
       }),
     );
-    return { references, leaves };
+    return { references, leaves: perChild.flat() };
   }
 
   async inspectTag(repository, tag, { noCache = false } = {}) {

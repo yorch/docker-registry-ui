@@ -17,7 +17,7 @@
       <button class="btn" onclick="{ onClose }" type="button">Close</button>
       <a
         class="btn btn--primary"
-        href="{ state.latest && state.latest.html_url }"
+        href="{ releaseUrl() }"
         target="_blank"
         rel="noopener noreferrer"
       >
@@ -28,10 +28,11 @@
   <script>
     import rocketIcon from '../images/rocket.svg';
     import { Http } from '../scripts/http';
-    import { isNewestVersion, parseJSON } from '../scripts/utils';
+    import { isNewestVersion, parseJSON, safeUrl } from '../scripts/utils';
     const LATEST = 'version-notification:latest';
     const EXPIRES = 'version-notification:expiration-date';
     const ONE_DAY = 24 * 60 * 60 * 1000;
+    const ONE_WEEK = ONE_DAY * 7;
     export default {
       onMounted(props, state) {
         const latest = parseJSON(localStorage.getItem(LATEST));
@@ -60,10 +61,13 @@
         const self = this;
 
         oReq.addEventListener('load', function () {
-          localStorage.setItem(EXPIRES, new Date().getTime() + ONE_DAY * 7);
+          // The check is only skipped for as long as the user is told: a week
+          // after an answer, a day after a failure.
+          const retryAfter = this.status === 200 || this.status === 404 ? ONE_WEEK : ONE_DAY;
+          localStorage.setItem(EXPIRES, new Date().getTime() + retryAfter);
           if (this.status === 200) {
             const latest = parseJSON(this.responseText);
-            if (latest && self.tag_name !== latest.tag_name && !isNewestVersion(props.version, latest.tag_name)) {
+            if (latest && self.state.tag_name !== latest.tag_name && !isNewestVersion(props.version, latest.tag_name)) {
               props.onNotify('A new version of Registry Explorer is available!');
             }
             localStorage.setItem(LATEST, this.responseText);
@@ -82,6 +86,11 @@
 
         oReq.open('GET', 'https://api.github.com/repos/yorch/docker-registry-ui/releases/latest');
         oReq.send();
+      },
+      // The release page comes from the GitHub API response, cached in
+      // localStorage, so it is only linked when it is an https URL.
+      releaseUrl() {
+        return safeUrl(this.state.latest?.html_url, ['https:']);
       },
       isNewestVersion,
     };

@@ -1,22 +1,63 @@
 <app-snackbar>
-  <div if="{ props.message }" class="snackbar { props.isError ? 'is-error' : '' }" role="status">
-    <span class="snackbar-message">{ props.message }</span>
-    <button class="snackbar-close" onclick="{ dismiss }" aria-label="Dismiss notification" type="button">
-      <i class="material-icons">close</i>
-    </button>
+  <!--
+    The live regions are always in the DOM, empty until a message arrives:
+    assistive tech only announces changes to a region it already knows about,
+    not one that is inserted together with its text. Errors go to an assertive
+    region, everything else to a polite one.
+  -->
+  <div class="snackbar-region" role="status" aria-live="polite" aria-atomic="true">
+    <div
+      if="{ props.message && !props.isError }"
+      class="snackbar"
+      onmouseenter="{ pause }"
+      onmouseleave="{ resume }"
+      onfocusin="{ pause }"
+      onfocusout="{ resume }"
+    >
+      <span class="snackbar-message">{ props.message }</span>
+      <button class="snackbar-close" onclick="{ dismiss }" aria-label="Dismiss notification" type="button">
+        <i class="material-icons" aria-hidden="true">close</i>
+      </button>
+    </div>
+  </div>
+  <div class="snackbar-region" role="alert" aria-live="assertive" aria-atomic="true">
+    <div if="{ props.message && props.isError }" class="snackbar is-error">
+      <span class="snackbar-message">{ props.message }</span>
+      <button class="snackbar-close" onclick="{ dismiss }" aria-label="Dismiss notification" type="button">
+        <i class="material-icons" aria-hidden="true">close</i>
+      </button>
+    </div>
   </div>
   <script>
     export default {
-      onUpdated(props, state) {
-        if (props.message) {
-          clearTimeout(this._timeout);
+      // Errors stay until dismissed or replaced: four seconds is not enough to
+      // read one, let alone act on it. Other messages are confirmations and
+      // clear themselves, but not while the pointer or focus is on them.
+      onMounted() {
+        this.arm();
+      },
+      onUpdated() {
+        this.arm();
+      },
+      arm() {
+        clearTimeout(this._timeout);
+        if (this.props.message && !this.props.isError && !this._paused) {
           this._timeout = setTimeout(() => this.dismiss(), 4000);
         }
       },
       onUnmounted() {
         clearTimeout(this._timeout);
       },
+      pause() {
+        this._paused = true;
+        clearTimeout(this._timeout);
+      },
+      resume() {
+        this._paused = false;
+        this.arm();
+      },
       dismiss() {
+        this._paused = false;
         if (this.props.onDismiss) {
           this.props.onDismiss();
         }

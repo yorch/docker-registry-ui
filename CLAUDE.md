@@ -18,10 +18,11 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 ## Naming
 
 - **The product is "Registry Explorer".** The repo, the npm package, the GHCR image
-  path, the `<docker-registry-ui>` custom element and the `DOCKER_REGISTRY_UI_TITLE`
-  environment variable all still say `docker-registry-ui` on purpose — those are
-  identifiers people have already deployed against, and renaming them is a breaking
-  change. Only prose and UI chrome carry the product name.
+  path, the `<docker-registry-ui>` custom element all still say `docker-registry-ui` on
+  purpose — those are identifiers people have already deployed against, and renaming
+  them is a breaking change. (The title environment variable was the exception: it is
+  now `APP_NAME`, and the old `DOCKER_REGISTRY_UI_TITLE` is no longer read.) Only
+  prose and UI chrome carry the product name.
 - **Vocabulary, matching the Distribution API rather than contradicting it:**
   - a **repository** is a pullable name (`team/service-a`) — one entry in `/v2/_catalog`
   - a **namespace** is the leading path segment repositories are grouped under for
@@ -112,5 +113,9 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 
 ## Licensing
 
-AGPL-3.0. Every source file carries the original author's copyright line; keep it.
-Add to the header, never replace it.
+AGPL-3.0. Source files that descend from upstream Joxit/docker-registry-ui carry the
+original author's copyright line (`Copyright (C) 2016-2023 Jones Magloire @Joxit`);
+keep it, and add to the header, never replace it. Files written new in this fork
+(many of the newer scripts, components and tests) have no header at all, and that is
+allowed: do not add a copyright line on someone's behalf. When you substantially
+rewrite an upstream file, keep its header (the redesign once dropped five by mistake).

@@ -42,7 +42,7 @@ export const taglistOrderParser = (taglistOrder) => {
   return orders;
 };
 
-export const tagReduce = (acc, e) => {
+const tagReduce = (acc, e) => {
   if (acc.length > 0 && isDigit(acc[acc.length - 1].charAt(0)) == isDigit(e)) {
     acc[acc.length - 1] += e;
   } else {

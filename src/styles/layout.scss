@@ -25,7 +25,8 @@
   gap: var(--space-3);
   min-height: var(--topbar-height);
   padding: 0 var(--space-5);
-  background-color: var(--surface);
+  background-color: var(--header-background, var(--surface));
+  color: var(--header-text, var(--text-primary));
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
@@ -43,7 +44,7 @@
   align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
-  color: var(--text-secondary);
+  color: var(--header-accent-text, var(--text-secondary));
 }
 
 .topbar .registry-static .status-dot {
@@ -92,7 +93,7 @@
 .brand .brand-name {
   font-size: var(--fs-xl);
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--header-text, var(--text-primary));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -120,13 +121,13 @@
   flex-wrap: wrap;
   padding: var(--space-3) var(--space-5);
   border-top: 1px solid var(--border);
-  background-color: var(--surface);
-  color: var(--text-muted);
+  background-color: var(--footer-background, var(--surface));
+  color: var(--footer-neutral-text, var(--text-muted));
   font-size: var(--fs-sm);
 }
 
 .app-footer a {
-  color: var(--text-secondary);
+  color: var(--footer-text, var(--text-secondary));
 }
 
 .app-footer a:hover {
@@ -166,7 +167,7 @@
   align-items: center;
   gap: var(--space-1);
   font-size: var(--fs-lg);
-  color: var(--text-secondary);
+  color: var(--header-accent-text, var(--text-secondary));
   white-space: nowrap;
 }
 
@@ -174,7 +175,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  color: var(--text-secondary);
+  color: var(--header-accent-text, var(--text-secondary));
   border-radius: var(--radius-sm);
   padding: 2px 4px;
 }
@@ -191,7 +192,7 @@
 }
 
 .breadcrumbs li[aria-current='page'] span {
-  color: var(--text-primary);
+  color: var(--header-text, var(--text-primary));
   font-weight: 600;
   max-width: 16em;
   overflow: hidden;

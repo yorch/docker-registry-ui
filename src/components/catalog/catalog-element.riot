@@ -25,7 +25,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         if="{ isRowVisible(props, state) }"
       >
         <a if="{ state.repository }" class="row-main" href="{ router.taglist(state.repository) }">
-          <i class="material-icons row-icon">send</i>
+          <i class="material-icons row-icon" aria-hidden="true">send</i>
           <span class="row-label">{ state.repository }</span>
         </a>
         <button
@@ -35,7 +35,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           onclick="{ onClick }"
           type="button"
         >
-          <i class="material-icons row-icon">folder</i>
+          <i class="material-icons row-icon" aria-hidden="true">folder</i>
           <span class="row-label">{ state.namespace }</span>
         </button>
         <span class="row-meta">
@@ -45,10 +45,10 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
             class="badge badge--accent { typeof state.nbTags === 'number' ? '' : 'is-pending' }"
             title="{ nbTagsTitle(state.nbTags) }"
           >
-            <i class="material-icons badge-icon">sell</i>
+            <i class="material-icons badge-icon" aria-hidden="true">sell</i>
             { nbTagsLabel(state.nbTags) }
           </span>
-          <i if="{ state.repositories }" class="material-icons row-chevron { state.expanded ? 'expanded' : '' }">
+          <i if="{ state.repositories }" class="material-icons row-chevron { state.expanded ? 'expanded' : '' }" aria-hidden="true">
             expand_more
           </i>
         </span>
