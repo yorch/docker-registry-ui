@@ -16,7 +16,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <tag-history-element class="{ state.key }">
   <div class="headline">
-    <i if="{ state.key !== 'docker_version' }" class="material-icons">{ state.icon }</i>
+    <i if="{ state.key !== 'docker_version' }" class="material-icons" aria-hidden="true">{ state.icon }</i>
     <span if="{ state.key === 'docker_version' }" id="docker_verion"></span>
     <span>{ state.name }</span>
   </div>

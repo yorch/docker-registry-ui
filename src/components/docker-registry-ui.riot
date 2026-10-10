@@ -18,8 +18,9 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   <div class="app-shell">
     <div class="app-main">
       <header class="topbar">
+        <h1 class="sr-only">{ state.title }</h1>
         <a class="brand" href="{ router.home() }" title="{ state.title }">
-          <span class="brand-icon"><i class="material-icons">view_in_ar</i></span>
+          <span class="brand-icon"><i class="material-icons" aria-hidden="true">view_in_ar</i></span>
           <span class="brand-name">{ state.title }</span>
         </a>
         <breadcrumbs></breadcrumbs>
@@ -55,7 +56,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
           title="Toggle light/dark theme"
           type="button"
         >
-          <i class="material-icons">{ state.themeSwitch ? 'light_mode' : 'dark_mode' }</i>
+          <i class="material-icons" aria-hidden="true">{ state.themeSwitch ? 'light_mode' : 'dark_mode' }</i>
         </button>
       </header>
 
@@ -164,7 +165,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     import { stripHttps, getRegistryServers, setRegistryServers, truthy, falsy, stringToArray, resolveAppName } from '../scripts/utils';
     import { authenticateRequest } from '../scripts/auth';
     import router from '../scripts/router';
-    import { loadTheme } from '../scripts/theme';
+    import { loadTheme, saveThemeChoice } from '../scripts/theme';
 
     export default {
       components: {
@@ -292,6 +293,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       onThemeChange() {
         const theme = this.state.themeSwitch ? 'light' : 'dark';
         loadTheme({ ...this.props, theme }, this.root.parentNode.style);
+        saveThemeChoice(theme);
         this.update({ themeSwitch: theme === 'dark' });
       },
       baseRoute: '([^#]*?)/(\\?[^#]*?)?(#!)?(/?)',

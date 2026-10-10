@@ -1,6 +1,6 @@
 <text-field>
   <div class="text-field { state.value ? 'not-empty' : '' }">
-    <span class="field-icon" if="{ props.icon }"><i class="material-icons">{ props.icon }</i></span>
+    <span class="field-icon" if="{ props.icon }"><i class="material-icons" aria-hidden="true">{ props.icon }</i></span>
     <input
       type="{ props.type || 'text' }"
       value="{ props.value }"

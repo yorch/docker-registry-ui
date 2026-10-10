@@ -286,6 +286,16 @@ export function isNewestVersion(current = '0.0.0', release = '0.0.0') {
   return false;
 }
 
+// A URL that came from outside (a query parameter, an API response) is only
+// safe to put in an href when its scheme is one we expect; `javascript:` would
+// run in this page's origin on click. Returns undefined for anything else, which
+// Riot renders as no attribute at all.
+export function safeUrl(url, protocols = ['http:', 'https:']) {
+  try {
+    return protocols.includes(new URL(url).protocol) ? url : undefined;
+  } catch (_e) {}
+}
+
 export function parseJSON(json) {
   if (!json) {
     return;

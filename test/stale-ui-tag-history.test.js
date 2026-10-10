@@ -1,17 +1,8 @@
 import assert from 'node:assert';
-import { register } from 'node:module';
 import { component, register as registerComponent, unregister } from 'riot';
 import { createMockRegistry } from '../dev/mock-registry/server.js';
 import AppTabs from '../src/components/app-tabs.riot';
 
-// tag-history-element imports an .svg, which the shared riot loader cannot
-// load. Stub images out for this file only, before the component is imported.
-register(
-  `data:text/javascript,${encodeURIComponent(`export async function load(url, context, nextLoad) {
-    if (url.endsWith('.svg')) return { format: 'module', shortCircuit: true, source: 'export default "";' };
-    return nextLoad(url, context);
-  }`)}`,
-);
 const { DockerImage } = await import('../src/scripts/docker-image.js');
 const { default: TagHistory } = await import('../src/components/tag-history/tag-history.riot');
 

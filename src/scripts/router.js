@@ -24,9 +24,17 @@ function getQueryParams() {
     .split('&')
     .forEach((qs) => {
       const splitIndex = qs.indexOf('=');
-      queries[qs.slice(0, splitIndex)] = splitIndex < 0 ? '' : qs.slice(splitIndex + 1);
+      queries[splitIndex < 0 ? qs : qs.slice(0, splitIndex)] = splitIndex < 0 ? '' : qs.slice(splitIndex + 1);
     });
   return queries;
+}
+
+// Everything after the first `#!`, so a repository called `team/taglist/x` or
+// a path that happens to contain `taglist/` cannot be mistaken for the route.
+function getRoutePath() {
+  const route = getCurrentRoute();
+  const hashbang = route.indexOf('#!');
+  return hashbang < 0 ? route : route.slice(hashbang + 2);
 }
 
 function updateQueryParams(qs) {
@@ -61,24 +69,31 @@ export default {
   home() {
     return baseUrl({ page: null });
   },
+  // Actually navigates to the catalog. home() only builds the URL, so calling it
+  // for its side effect left the tag list or tag history on screen. The popstate
+  // is what @riotjs/route listens to, so it re-matches the routes for the new URL.
+  goHome() {
+    window.history.pushState(null, '', baseUrl({ page: null }));
+    window.dispatchEvent(new window.PopStateEvent('popstate'));
+  },
   taglist(image) {
     return `${baseUrl({ page: null })}#!/taglist/${image}`;
   },
   getTagListImage() {
-    return getCurrentRoute().replace(/^.*(#!)?\/?taglist\//, '');
+    return getRoutePath().replace(/^(?:.*?\/)?taglist\//, '');
   },
   history(image, tag) {
     return `${baseUrl({ page: null })}#!/taghistory/image/${image}/tag/${tag}`;
   },
   getTagHistoryImage() {
-    return getCurrentRoute().replace(/^.*(#!)?\/?taghistory\/image\/(.*)\/tag\/(.*)\/?$/, '$2');
+    return getRoutePath().replace(/^(?:.*?\/)?taghistory\/image\/(.*)\/tag\/([^/]*)\/?$/, '$1');
   },
   getTagHistoryTag() {
-    return getCurrentRoute().replace(/^.*(#!)?\/?taghistory\/image\/(.*)\/tag\/(.*)\/?$/, '$3');
+    return getRoutePath().replace(/^(?:.*?\/)?taghistory\/image\/(.*)\/tag\/([^/]*)\/?$/, '$2');
   },
   updateQueryString(qs) {
     const search = toSearchString(updateQueryParams(qs));
-    history.pushState(null, '', search + window.location.hash);
+    window.history.pushState(null, '', search + window.location.hash);
   },
   updateUrlQueryParam(url) {
     this.updateQueryString({ url: encodeURI(url) });

@@ -22,7 +22,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     title="History is unavailable on OCI index/Buildkit export cache"
     type="button"
   >
-    <i class="material-icons">history</i>
+    <i class="material-icons" aria-hidden="true">history</i>
   </button>
   <a
     if="{ !props.image.ociImage }"
@@ -31,7 +31,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     title="This will show the history of given tag"
     aria-label="Show history of { props.image.name }:{ props.image.tag }"
   >
-    <i class="material-icons">history</i>
+    <i class="material-icons" aria-hidden="true">history</i>
   </a>
   <script>
     import router from '../../scripts/router';

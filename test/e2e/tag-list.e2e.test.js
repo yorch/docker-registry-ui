@@ -249,7 +249,9 @@ describe('tag list in a browser', function () {
     // namespace, so these two counts must not agree. Reporting the same number
     // twice is exactly the bug the renamed labels are meant to make obvious.
     assert.ok(repositories > namespaces, `expected fewer namespaces than repositories, got "${stats.trim()}"`);
-    assert.equal(repositories - namespaces, 1, 'only the two team/* repositories collapse into one namespace');
+    // Bare repositories (`nginx`, `redis`) belong to no namespace, so the only
+    // namespace in the mock catalog is `team/`.
+    assert.equal(namespaces, 1, 'only team/ is a namespace; bare repositories are not counted as one');
 
     // "Namespace" is this UI's own term -- the registry has no such concept --
     // so each badge has to explain itself in place.
