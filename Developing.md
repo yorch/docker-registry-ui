@@ -53,9 +53,11 @@ Every repository in the catalogue exists to demonstrate one thing:
 | `team/service-a`, `team/service-b` | Nested names, for the catalogue branching options |
 | `huge` | 1000 tags: pagination, and making the request fan-out visible |
 | `exactly-100` | Exactly one default page, the boundary that used to render an empty second page |
+| `deletable` | One tag, owned by the delete tests so they never mutate `nginx` |
 | `empty` | No tags at all, for the empty state |
 | `oci-index` | A multi-architecture OCI index, for the architectures column |
 | `broken-manifest` | Lists tags but every manifest 404s, for the unavailable state |
+| `single-platform-index` | An OCI index wrapping exactly one manifest (what buildx emits for a single-platform build), which must show one size and date rather than "Multiple" |
 | `no-digest-header` | Omits `Docker-Content-Digest`, forcing the SHA-256 fallback |
 | `slow` | Delayed responses, so loading states stay on screen long enough to look at |
 

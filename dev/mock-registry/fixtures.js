@@ -58,6 +58,14 @@ export const fixtures = [
     layerSizes: [2_048],
   },
   {
+    name: 'deletable',
+    description:
+      'A one-tag repository that tests are free to delete from, so a delete in one test cannot change what another test sees in nginx.',
+    tags: ['latest'],
+    architecture: 'amd64',
+    layerSizes: [1_024],
+  },
+  {
     name: 'empty',
     description: 'A repository with no tags at all, for the empty state.',
     tags: [],

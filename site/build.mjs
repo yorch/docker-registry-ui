@@ -160,7 +160,7 @@ const layout = ({ title, description, page, body, canonical }) => `<!doctype htm
       <div class="wrap">
         <a class="brand" href="./index.html">
           <span class="brand-mark">${ICONS.layers}</span>
-          <span>docker-registry-ui</span>
+          <span>Registry Explorer</span>
         </a>
         <nav class="nav" aria-label="Main">
           <a href="./index.html"${page === 'home' ? ' aria-current="page"' : ''}>Home</a>
@@ -296,7 +296,7 @@ ${feature('palette', 'Themeable', `Light and dark out of the box, plus <code>THE
           <div class="steps">
             <div class="step">
               <h3>Pull the image</h3>
-              <p>Tags follow the release line: <code>latest</code>, <code>2</code>, <code>2.7</code>, <code>2.7.0</code>, each with a <code>-debian</code> variant.</p>
+              <p>Tags follow the release line: <code>latest</code>, <code>3</code>, <code>3.2</code>, <code>3.2.1</code>, each with a <code>-debian</code> variant.</p>
               <div class="code-block"><pre>docker pull ${IMAGE}:latest</pre></div>
             </div>
             <div class="step">
