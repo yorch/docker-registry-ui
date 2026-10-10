@@ -1,5 +1,7 @@
 name: Release
 
+# The glob below is only a coarse filter: it also matches 3.3.0-rc1. The first
+# step of the job enforces the strict X.Y.Z form.
 on:
   push:
     tags: ['[0-9]*.[0-9]*.[0-9]*']
@@ -20,9 +22,39 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      # A prerelease must never move :latest, :3 or :3.3. The ref goes through
+      # env, never interpolated into the script body.
+      - name: Require a strict X.Y.Z release tag
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if ! printf '%s' "$REF_NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag '$REF_NAME' is not a strict X.Y.Z release tag"
+            exit 1
+          fi
+
       - uses: actions/checkout@v7
         with:
+          # Full history: the ancestry check below needs origin/main.
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require tag == package.json version and commit on main
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$REF_NAME" != "$PKG_VERSION" ]; then
+            echo "::error::Tag '$REF_NAME' does not match package.json version '$PKG_VERSION'"
+            exit 1
+          fi
+          git rev-parse --verify --quiet refs/remotes/origin/main >/dev/null \
+            || { echo "::error::origin/main was not fetched"; exit 1; }
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tagged commit $GITHUB_SHA is not on main"
+            exit 1
+          fi
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -30,6 +62,8 @@ jobs:
       - run: npm ci
       - run: npx biome ci .
       - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
 
       - name: Compute version tags
         id: tags
@@ -40,11 +74,6 @@ jobs:
             echo "minor=$(echo "$FULL" | grep -o '^[0-9]*\.[0-9]*')"
             echo "major=$(echo "$FULL" | grep -o '^[0-9]*')"
           } >> "$GITHUB_OUTPUT"
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v3
-        with:
-          generate_release_notes: true
 
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
@@ -88,3 +117,11 @@ jobs:
             ghcr.io/yorch/docker-registry-ui:${{ steps.tags.outputs.patch }}-debian
           cache-from: type=gha,scope=release-debian
           cache-to: type=gha,mode=max,scope=release-debian
+
+      # Last on purpose: a failed image push must not leave a published release
+      # without images. Uses the API with GITHUB_TOKEN, not the git credential,
+      # so persist-credentials: false does not affect it.
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
