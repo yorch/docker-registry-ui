@@ -26,6 +26,15 @@ export const isTrustedRegistry = (registryUrl, trustedRegistries = []) => {
   return Boolean(url) && trustedRegistries.some((trusted) => trimSlashes(trusted) === url);
 };
 
+// Trust is decided from the request that got the 401, never from what the UI
+// shows now: a held-open request can be answered after the user switched
+// registries. A request is trusted when its origin is the origin of a trusted
+// registry.
+export const isTrustedRequest = (requestUrl, trustedRegistries = []) => {
+  const request = parseHttpUrl(requestUrl);
+  return Boolean(request) && trustedRegistries.some((trusted) => parseHttpUrl(trusted)?.origin === request.origin);
+};
+
 const parseHttpUrl = (value, base) => {
   try {
     const url = new URL(value, base);
@@ -35,34 +44,36 @@ const parseHttpUrl = (value, base) => {
   }
 };
 
-// A bearer realm is followed only when it is an absolute http(s) URL and either
-// shares the registry's origin or the registry itself is trusted. Following any
-// other realm hands the user's credentials to whoever the registry names, then
-// replays the minted token against that same registry.
-export const isRealmAllowed = (realm, registryUrl, trusted) => {
-  let realmUrl;
-  try {
-    realmUrl = new URL(realm);
-  } catch (_e) {
-    return false;
+// A realm is an absolute http(s) URL or a path starting with `/`, resolved
+// against the request URL. It is followed only when it shares the request's
+// origin or the request went to a trusted registry. Following any other realm
+// hands the user's credentials to whoever the registry names, then replays the
+// minted token against that same registry.
+export const resolveRealm = (realm, requestUrl) => {
+  if (typeof realm !== 'string' || !(/^https?:\/\//i.test(realm) || realm.startsWith('/'))) {
+    return undefined;
   }
-  if (realmUrl.protocol !== 'http:' && realmUrl.protocol !== 'https:') {
-    return false;
-  }
-  if (trusted) {
-    return true;
-  }
-  const registry = parseHttpUrl(registryUrl, globalThis.window?.location?.href);
-  return Boolean(registry) && registry.origin === realmUrl.origin;
+  return parseHttpUrl(realm, parseHttpUrl(requestUrl)?.href);
 };
 
-export const buildTokenUrl = ({ realm, service, scope }) => {
-  const url = new URL(realm);
+export const isRealmAllowed = (realm, requestUrl, trusted) => {
+  const realmUrl = resolveRealm(realm, requestUrl);
+  if (!realmUrl) {
+    return false;
+  }
+  return Boolean(trusted) || parseHttpUrl(requestUrl)?.origin === realmUrl.origin;
+};
+
+export const buildTokenUrl = ({ realm, service, scope }, requestUrl) => {
+  const url = resolveRealm(realm, requestUrl) ?? new URL(realm);
   url.searchParams.set('service', service);
   url.searchParams.append('scope', scope);
   return url.toString();
 };
 
+const TOKEN_TIMEOUT_MS = 30000;
+
+// `registryUrl` is the URL of the request that got the 401.
 // Always ends in exactly one `onAuthenticated` call, with a bearer only when
 // one was obtained. The caller retries the original request either way, and a
 // request that never settles would hold its request-pool slot forever.
@@ -96,17 +107,31 @@ export const requestBearer = (opts, { registryUrl, trusted, notify }, onAuthenti
     if (req.status < 200 || req.status >= 300) {
       return settle(undefined, `the token server answered ${req.status}`);
     }
+    // Parse inside the try, settle outside it: a throw from the caller's
+    // continuation must not be mistaken for a parse error and swallowed.
+    let bearer;
     try {
-      settle(JSON.parse(req.responseText));
+      bearer = JSON.parse(req.responseText);
     } catch (e) {
-      settle(undefined, e.message);
+      return settle(undefined, e.message);
     }
+    settle(bearer);
   });
   req.withCredentials = true;
   try {
-    req.open('GET', buildTokenUrl(opts));
+    req.open('GET', buildTokenUrl(opts, registryUrl));
+    // loadend also fires on timeout, so a silent token server cannot hold the
+    // caller (and its request-pool slot) forever.
+    req.timeout = TOKEN_TIMEOUT_MS;
     req.send();
   } catch (e) {
     settle(undefined, e.message);
   }
 };
+
+export const authenticateRequest = (opts, requestUrl, trustedRegistries, notify, onAuthenticated) =>
+  requestBearer(
+    opts,
+    { registryUrl: requestUrl, trusted: isTrustedRequest(requestUrl, trustedRegistries), notify },
+    onAuthenticated,
+  );

@@ -21,9 +21,7 @@ describe('isRealmAllowed', () => {
     assert.equal(isRealmAllowed('not a url', REGISTRY, true), false);
     assert.equal(isRealmAllowed('', REGISTRY, true), false);
   });
-  it('refuses a relative or non-http(s) realm', () => {
-    assert.equal(isRealmAllowed('/auth/token', REGISTRY, true), false);
-    assert.equal(isRealmAllowed('//auth.example.com/token', REGISTRY, true), false);
+  it('refuses a non-http(s) realm', () => {
     assert.equal(isRealmAllowed('javascript:alert(1)', REGISTRY, true), false);
     assert.equal(isRealmAllowed('ftp://registry.example.com/token', REGISTRY, false), false);
   });

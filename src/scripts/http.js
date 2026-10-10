@@ -74,28 +74,55 @@ export class Http {
           const tokenAuth =
             this.hasHeader('www-authenticate') && parseAuthenticateHeader(this.getResponseHeader('www-authenticate'));
           if (this.status === 401 && (!this.withCredentials || tokenAuth)) {
-            self.onAuthentication(tokenAuth, (bearer) => {
-              const req = new XMLHttpRequest();
-              req._url = self._url;
-              req.open(self._method, self._url);
-              for (const key in self._events) {
-                req.addEventListener(key, self._events[key]);
+            const origin = (url) => {
+              try {
+                return new URL(url).origin;
+              } catch (_e) {
+                return undefined;
               }
-              for (const key in self._headers) {
-                req.setRequestHeader(key, self._headers[key]);
-              }
-              if (bearer?.token) {
-                req.setRequestHeader('Authorization', `Bearer ${bearer.token}`);
-              } else if (bearer?.access_token) {
-                req.setRequestHeader('Authorization', `Bearer ${bearer.access_token}`);
-              } else {
-                req.withCredentials = true;
-              }
-              req.hasHeader = hasHeader;
-              req.getErrorMessage = getErrorMessage;
-              self.oReq = req;
-              req.send();
-            });
+            };
+            const requestUrl = self._url;
+            self.onAuthentication(
+              tokenAuth,
+              (bearer) => {
+                const token = bearer?.token || bearer?.access_token;
+                // The bearer was minted for the origin that answered 401. Never
+                // send it anywhere else (a redirect, a re-opened Http).
+                const answeredFrom = origin(this.responseURL || requestUrl);
+                if (token && (answeredFrom !== origin(requestUrl) || origin(self._url) !== origin(requestUrl))) {
+                  f.bind(this)();
+                  return;
+                }
+                const previous = self.oReq;
+                try {
+                  const req = new XMLHttpRequest();
+                  req._url = self._url;
+                  req.open(self._method, self._url);
+                  for (const key in self._events) {
+                    req.addEventListener(key, self._events[key]);
+                  }
+                  for (const key in self._headers) {
+                    req.setRequestHeader(key, self._headers[key]);
+                  }
+                  if (token) {
+                    req.setRequestHeader('Authorization', `Bearer ${token}`);
+                  } else {
+                    req.withCredentials = true;
+                  }
+                  req.hasHeader = hasHeader;
+                  req.getErrorMessage = getErrorMessage;
+                  self.oReq = req;
+                  req.send();
+                } catch (_e) {
+                  // The replay could not be built or sent (for example a token
+                  // that is not a valid header value). Settle the caller with
+                  // the original 401 instead of leaving it waiting forever.
+                  self.oReq = previous;
+                  f.bind(this)();
+                }
+              },
+              requestUrl,
+            );
           } else {
             (this.status === 200 || this.status === 202) &&
               !self.withCredentials &&
