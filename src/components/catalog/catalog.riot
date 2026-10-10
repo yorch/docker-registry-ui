@@ -285,7 +285,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
             });
             oReq.open('GET', props.registryUrl + '/v2/' + repository + '/tags/list');
             oReq.send();
-          });
+          }, undefined, this);
         });
       },
       fetchCounts(images, props, noCache = false) {
@@ -382,7 +382,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         this.cancelPendingCounts();
         // Counts queued for the registry we are leaving are worthless now, and
         // they would otherwise be served ahead of this registry's own.
-        requestPool.drop();
+        requestPool.drop(this);
         return generation;
       },
       fetchCatalog(props, state, generation, refresh = false) {
