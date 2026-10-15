@@ -113,6 +113,14 @@ production.
 Note that port 5000, the usual registry port, is taken by AirPlay Receiver on
 macOS.
 
+## Build
+
+`npm run build` bundles the app into `dist/` with Rollup and minifies it with Terser.
+There is no Babel step and no polyfills: the bundle targets ES2020 (Chrome 80+,
+Firefox 74+, Safari 13.1+), so write modern JavaScript and do not add `core-js`.
+Static assets (fonts, images, `version.json`) are copied by the small local plugin
+`rollup/copy-assets.js`.
+
 ## Run the tests
 
 ```bash

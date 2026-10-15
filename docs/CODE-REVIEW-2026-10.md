@@ -184,23 +184,20 @@ Behaviour changes worth knowing about:
 - **Needs your decision:** the TLS key and Keycloak DB under `examples/` are untracked
   but remain in git history. If the key was ever trusted anywhere, treat it as
   compromised; scrubbing history is a rewrite.
-- **Repository admin:** branch protection on `main` (see below).
+- **Repository admin:** nothing outstanding. Branch protection on `main` is enabled and requires the checks `test`, `e2e`, `docker alpine` and `docker debian`. Dependencies are pinned to exact versions (PR #36).
 - **Nothing verified in a real browser or screen reader:** the dialog focus trap, live
   regions and `goHome()` are covered by jsdom tests only.
 - **Retention:** the dialog's fresh alias check still costs one uncached manifest GET per
   tag; an index referenced only by digest cannot be found through the tag list; there is
   no UI toggle for `deleteCosignTags`.
 - **Smaller:** `bin/fill-registry` is unreferenced;
-  about 55 lines of unused `.switch` CSS; `MAX_CACHE_BYTES` unused; `core-js` is
-  injected by a stale Babel `corejs: 2` config (fix the Babel config, not the
-  dependency); 9 dev-only `npm audit` findings need breaking upgrades; no `HEALTHCHECK`
+  about 55 lines of unused `.switch` CSS; `MAX_CACHE_BYTES` unused; no `HEALTHCHECK`
   and no non-root default; topbar overflow at 320 to 375px and the snackbar over the
   selection bar on mobile are unverified; `M-SEC-6` mock registry still
   binds all interfaces with `ACAO: *`; the Keycloak example now starts from a blank
   realm.
 
-## Requires a repository admin
+## Repository admin
 
-Enable branch protection on `main`: require the `test` and `e2e` checks, require pull
-requests, and block force pushes. Its absence is what let a failing-test merge
-break `main` before (PR #19).
+Branch protection on `main` is enabled, and the checks `test`, `e2e`, `docker alpine`
+and `docker debian` are required. Its absence is what let a failing-test merge break `main` before (PR #19).

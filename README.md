@@ -336,6 +336,10 @@ check out the [Electron](https://github.com/yorch/docker-registry-ui/blob/main/e
 - [Use docker-registry-ui with token authentication via Keycloak](https://github.com/yorch/docker-registry-ui/tree/main/examples/token-auth-keycloak)
 - [Populate a local registry with test data](https://github.com/yorch/docker-registry-ui/tree/main/examples/populate-registry)
 
+## Browser support
+
+Registry Explorer needs a browser with ES2020 support: Chrome 80+, Firefox 74+ or Safari 13.1+ (and the Chromium-based Edge that matches Chrome 80). The build does not transpile or polyfill, so the bundle ships modern JavaScript as written; the app also relies on `crypto.subtle`, which browsers only expose on secure origins (HTTPS or `localhost`).
+
 ## Development
 
 See [CLAUDE.md](https://github.com/yorch/docker-registry-ui/blob/main/CLAUDE.md) for build, test, and formatting commands, and
