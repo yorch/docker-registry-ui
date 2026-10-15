@@ -45,6 +45,7 @@ const DOC_SECTIONS = [
   'Registry example',
   'Standalone Application',
   'FAQ',
+  'Browser support',
 ];
 
 const escapeHtml = (value) =>
