@@ -40,7 +40,7 @@ is marked _unverified_. The test suite and linter were not run by the reviewers 
 | H9 | **Resets inside `onUpdated` never render.** Riot skips the DOM patch for an `update()` made while the component is already updating, so a registry switch or navigation never shows the loading state and the old UI (with live delete buttons) stays on screen. | `catalog.riot`, `tag-list.riot`, `search-bar.riot` | Fixed in this PR |
 | H10 | **A stale tag selection survives navigation and refresh**, so Delete can remove tags that are no longer shown. | `tag-table.riot` | Fixed in this PR |
 | H11 | **Tag-history spinner can hang forever.** The page fills in `onBeforeMount` but subscribes in `onMounted`; cache hits replay synchronously, so the events fire before anyone listens. | `tag-history.riot` | Fixed in this PR |
-| H12 | **No publish gate.** `main` has no branch protection. `main.yml` and `release.yml` skip e2e. A prerelease tag such as `3.3.0-rc1` matches the release glob and would overwrite `:latest`, `:3`, `:3.3`. Nothing checks that the tag equals `package.json` version or that the commit is on `main`. | `.github/workflows/` | Workflow parts fixed in this PR; branch protection needs a repo admin |
+| H12 | **No publish gate.** `main` had no branch protection (now enabled, see "Repository admin"). `main.yml` and `release.yml` skip e2e. A prerelease tag such as `3.3.0-rc1` matches the release glob and would overwrite `:latest`, `:3`, `:3.3`. Nothing checks that the tag equals `package.json` version or that the commit is on `main`. | `.github/workflows/` | Workflow parts fixed in this PR; branch protection since enabled |
 | H13 | **The destructive delete path is nearly untested.** `executeDelete` has no tests, and the mock registry accepts DELETE by tag (a real registry rejects it), has no 401, 405 or 5xx, and ignores `n`/`last` on `tags/list`. | `test/`, `dev/mock-registry/server.js` | Fixed in this PR |
 
 ### What the adversarial pass added
@@ -184,7 +184,7 @@ Behaviour changes worth knowing about:
 - **Needs your decision:** the TLS key and Keycloak DB under `examples/` are untracked
   but remain in git history. If the key was ever trusted anywhere, treat it as
   compromised; scrubbing history is a rewrite.
-- **Repository admin:** nothing outstanding. Branch protection on `main` is enabled and requires the checks `test`, `e2e`, `docker alpine` and `docker debian`. Dependencies are pinned to exact versions (PR #36).
+- **Repository admin:** nothing outstanding. Branch protection on `main` is enabled (details below). Dependencies are pinned to exact versions (PR #36).
 - **Nothing verified in a real browser or screen reader:** the dialog focus trap, live
   regions and `goHome()` are covered by jsdom tests only.
 - **Retention:** the dialog's fresh alias check still costs one uncached manifest GET per
@@ -199,5 +199,8 @@ Behaviour changes worth knowing about:
 
 ## Repository admin
 
-Branch protection on `main` is enabled, and the checks `test`, `e2e`, `docker alpine`
-and `docker debian` are required. Its absence is what let a failing-test merge break `main` before (PR #19).
+Branch protection on `main` is enabled with required status checks named exactly `test`,
+`e2e`, `docker (alpine, ./Dockerfile)` and `docker (debian, ./debian.dockerfile)`. Force
+pushes and deletion are blocked. Requiring pull requests is deliberately not enabled
+(single committer, admins not enforced). Its absence is what let a failing-test merge
+break `main` before (PR #19).

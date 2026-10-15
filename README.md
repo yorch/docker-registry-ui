@@ -338,7 +338,9 @@ check out the [Electron](https://github.com/yorch/docker-registry-ui/blob/main/e
 
 ## Browser support
 
-Registry Explorer needs a browser with ES2020 support: Chrome 80+, Firefox 74+ or Safari 13.1+ (and the Chromium-based Edge that matches Chrome 80). The build does not transpile or polyfill, so the bundle ships modern JavaScript as written; the app also relies on `crypto.subtle`, which browsers only expose on secure origins (HTTPS or `localhost`).
+Registry Explorer needs a browser with ES2020 syntax and ES2022 built-ins: Chrome or Edge 93+, Firefox 92+, or Safari 15.4+. The build does not transpile or polyfill, so the bundle ships modern JavaScript as written. The ES2022 requirement comes from `Object.hasOwn`, which `@riotjs/route` calls when the router starts; older browsers fail to render the app. The floor can be revisited if that dependency changes.
+
+The app uses `crypto.subtle` when it is available (secure origins: HTTPS or `localhost`) to verify content digests, and skips that check otherwise. Deployments over plain HTTP still work.
 
 ## Development
 
