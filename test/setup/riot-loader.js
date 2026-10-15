@@ -1,6 +1,6 @@
 /*
  * Node ESM loader hook that compiles `.riot` single-file components on import,
- * so mocha can exercise components the same way rollup-plugin-riot builds them.
+ * so mocha can exercise components the same way build/riot.js builds them.
  */
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
@@ -11,11 +11,11 @@ import { compile, registerPreprocessor } from '@riotjs/compiler';
 // not styling, so drop the stylesheet rather than pulling sass into the loader.
 registerPreprocessor('css', 'scss', () => ({ code: '', map: null }));
 
-// Components import their modules without a file extension, which the rollup
+// Components import their modules without a file extension, which Vite's
 // resolver accepts but Node's ESM resolver does not. Only used as a fallback,
 // so a genuinely missing module still reports the specifier that was asked for.
 export async function resolve(specifier, context, nextResolve) {
-  // `.version.json` is written by rollup.config.js and is gitignored, so a
+  // `.version.json` is written by vite.config.js and is gitignored, so a
   // fresh checkout has none. Tests of the app shell get a fixed stand-in.
   if (specifier.endsWith('/.version.json')) {
     return { url: 'test-stub:version', shortCircuit: true };
@@ -35,7 +35,7 @@ export async function load(url, context, nextLoad) {
     const source = 'export const version = "0.0.0-test"; export const latest = "0.0.0-test"; export const commit = "";';
     return { format: 'module', shortCircuit: true, source };
   }
-  // rollup's import-svg plugin turns an svg import into a function returning a
+  // the build's import-svg plugin turns an svg import into a function returning a
   // parsed document. Tests never look at the artwork, so a stub is enough.
   if (url.endsWith('.svg')) {
     const source = 'export default () => ({ firstElementChild: { outerHTML: "<svg></svg>" } });';
