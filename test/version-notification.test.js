@@ -120,14 +120,17 @@ describe('version notification', () => {
 
   it('should still tell the user when storage throws', () => {
     mount();
-    const real = Storage.prototype.setItem;
-    Storage.prototype.setItem = () => {
+    // The prototype of the page's own localStorage: a bare `Storage` global is
+    // only defined on some Node versions, and CI does not have it.
+    const storage = Object.getPrototypeOf(localStorage);
+    const real = storage.setItem;
+    storage.setItem = () => {
       throw new Error('QuotaExceededError');
     };
     try {
       assert.doesNotThrow(() => FakeXHR.instances[0].respond(500, 'boom'));
     } finally {
-      Storage.prototype.setItem = real;
+      storage.setItem = real;
     }
     assert.match(notes[0], /24 hours/);
   });
