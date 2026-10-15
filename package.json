@@ -20,7 +20,7 @@
   "license": "AGPL-3.0",
   "description": "A web UI for private docker registry",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
