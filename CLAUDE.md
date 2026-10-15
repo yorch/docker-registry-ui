@@ -1,15 +1,16 @@
 # CLAUDE.md
 
-A web UI for private Docker registries. Riot.js 9 SPA bundled by Rollup, served
+A web UI for private Docker registries. Riot.js 9 SPA bundled by Vite, served
 by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 
 ## Commands
 
 - `npm ci` — install from the lockfile
-- `npm start` — dev server on http://localhost:8000 (writes to `.serve/`, not `dist/`).
-  With no `REGISTRY_URL` set it also starts a mock registry on port 5555, so the UI has
+- `npm start` — Vite dev server on http://localhost:8000 (served from memory, nothing is
+  written to `dist/`; a `.riot` edit reloads the page rather than hot-swapping). With no
+  `REGISTRY_URL` set it also starts a mock registry on port 5555, so the UI has
   something to browse without a real registry. See `Developing.md`.
-- `npm run build` — production bundle into `dist/`
+- `npm run build` — `vite build`, the production bundle into `dist/`
 - `npm test` — mocha suites in `test/`
 - `npm run build:site` — the project site (GitHub Pages) into `site/_build`
 - `npm run lint` — `biome check .`
@@ -44,10 +45,13 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 - **Biome does not format `.riot` files, and neither did Prettier before it.**
   Neither tool can parse Riot SFCs. Format them by hand, matching surrounding style.
 - **Imports are sorted by Biome's `organizeImports` assist action.** It leaves
-  side-effect imports where they are, which `src/index.js` depends on: the SCSS
-  imports are concatenated into the bundle in import order, so `styles/tokens.scss`
-  has to stay ahead of `style.scss`. If you ever change import sorting, rebuild and
-  diff `dist/docker-registry-ui.css` — nothing else would catch a reordered cascade.
+  side-effect imports where they are, which `src/index.js` depends on: Vite compiles
+  each SCSS import on its own and concatenates the results in import order, so
+  `styles/tokens.scss` comes out ahead of `style.scss`, and that order is the cascade.
+  If you ever change import sorting, rebuild and diff `dist/docker-registry-ui.css` —
+  nothing else would catch a reordered cascade. (The old Rollup build concatenated the
+  Sass sources and compiled them once, which put the tokens block *last*; nothing else
+  targets `:root` or `[data-theme]`, so the move changes no computed style.)
 - **`useSortedKeys` is deliberately off.** Alphabetising object literals would rewrite
   235 sites, 145 of them in `test/fixtures/` and `dev/mock-registry/fixtures.js`.
   The manifest fixtures are captured registry responses and their key order mirrors
@@ -85,18 +89,30 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 - **`dist/` is build output and is not committed.** The Docker images build it in a
   multi-stage build. The GitHub Pages workflow does not touch it — the project site
   is a separate build (`npm run build:site`) that does not include the app bundle.
-- **`dev/` is a build-time dependency, not just dev tooling.** `rollup.config.js` imports
-  `rollup/mock-registry-plugin.js` at module load, which imports `dev/mock-registry/server.js`.
-  Rollup therefore cannot start without `dev/` present — production builds included. Both
-  Dockerfiles `COPY dev/` into the build stage and `.dockerignore` allowlists it. If you add
-  another top-level directory that `rollup.config.js` reaches, it needs the same treatment or
-  the image build fails while `npm run build` still works locally.
+- **`dev/` is a build-time dependency, not just dev tooling.** `vite.config.js` imports
+  `dev/mock-registry/server.js` (and the helpers in `build/`) at module load, so Vite
+  cannot start without `dev/` present — production builds included. Both Dockerfiles
+  `COPY` `vite.config.js`, `build/` and `dev/` into the build stage and `.dockerignore`
+  allowlists them. If you add another top-level directory that `vite.config.js` reaches,
+  it needs the same treatment or the image build fails while `npm run build` still
+  works locally.
 - **`dist/index.html` ships with literal `${REGISTRY_URL}`-style placeholders.**
   `bin/90-docker-registry-ui.sh` runs as an nginx entrypoint hook and substitutes them
   with `sed` from environment variables at container start. A change that pre-substitutes
   or strips those placeholders silently breaks every configuration option.
   When adding a new env-var option, you must add a matching `sed` line to that script.
-- `rollup.config.js` reads `version` from `package.json` and writes `dist/version.json`.
+- **`dist/` has to keep its exact layout and names, unhashed**: `docker-registry-ui.js`
+  (an IIFE), `docker-registry-ui.css`, `fonts/`, `images/`, `version.json`, `index.html`.
+  The Dockerfiles, the entrypoint script and `examples/electron` depend on it. `index.html`
+  is emitted as a plain asset by `vite.config.js` (not Vite's HTML pipeline) precisely so
+  the placeholders survive; `test/build.test.js` builds to a temp dir and checks this.
+- **`build.target` is pinned** to `es2020` plus Chrome 93 / Firefox 92 / Safari 15.4, the
+  README's browser floor. Vite's default would raise it to Chrome 111 / Firefox 114 /
+  Safari 16.4. Oxc does not polyfill and there is no Babel step.
+- **`build/riot.js` replaces `rollup-plugin-riot`**, which would pull Rollup back in as a
+  required peer. It only calls `@riotjs/compiler`, with the same options as
+  `test/setup/riot-loader.js`.
+- `vite.config.js` reads `version` from `package.json` and writes `dist/version.json`.
   Setting `DEVELOPMENT_BUILD` or running the dev server bumps the minor version and
   appends a suffix.
 - **`version.json` also carries the `commit` the bundle was built from**, which the
