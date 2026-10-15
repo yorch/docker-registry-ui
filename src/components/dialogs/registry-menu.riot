@@ -10,6 +10,7 @@
   <add-registry-url
     opened="{ state.addDialog }"
     on-close="{ onClose }"
+    return-focus="{ triggerButton }"
     on-notify="{ props.onNotify }"
     on-server-change="{ props.onServerChange }"
   ></add-registry-url>
@@ -89,6 +90,11 @@
           this.update({ open: false });
           this.$('.registry-trigger').focus();
         }
+      },
+      // The popover item that opens the dialog goes away with the popover, so
+      // the dialog hands focus back to the trigger instead.
+      triggerButton() {
+        return this.$('.registry-trigger');
       },
       onOpen() {
         this.update({ open: false, addDialog: true });

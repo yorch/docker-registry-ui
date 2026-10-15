@@ -7,7 +7,12 @@
  (at your option) any later version.
 -->
 <add-registry-url>
-  <app-dialog title="Add a registry" opened="{ props.opened }" on-close="{ props.onClose }">
+  <app-dialog
+    title="Add a registry"
+    opened="{ props.opened }"
+    on-close="{ props.onClose }"
+    return-focus="{ props.returnFocus }"
+  >
     <div class="add-registry-form">
       <text-field
         label="Server URL"

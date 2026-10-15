@@ -186,8 +186,7 @@ Behaviour changes worth knowing about:
   compromised; scrubbing history is a rewrite.
 - **Repository admin:** branch protection on `main` (see below).
 - **Nothing verified in a real browser or screen reader:** the dialog focus trap, live
-  regions and `goHome()` are covered by jsdom tests only; the "Add registry" dialog does
-  not return focus (its opener closes with the popover).
+  regions and `goHome()` are covered by jsdom tests only.
 - **Retention:** the dialog's fresh alias check still costs one uncached manifest GET per
   tag; an index referenced only by digest cannot be found through the tag list; there is
   no UI toggle for `deleteCosignTags`.
