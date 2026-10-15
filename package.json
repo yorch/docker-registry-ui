@@ -39,7 +39,6 @@
     "riot": "9.4.11",
     "rollup": "4.64.6",
     "rollup-plugin-app-utils": "1.0.6",
-    "rollup-plugin-copy": "3.5.0",
     "rollup-plugin-riot": "9.0.2",
     "rollup-plugin-scss": "4.0.1",
     "rollup-plugin-serve": "3.0.0",

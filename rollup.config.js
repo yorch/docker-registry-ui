@@ -6,12 +6,12 @@ import json from '@rollup/plugin-json';
 import nodeResolve from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
 import { emptyDirectories } from 'rollup-plugin-app-utils';
-import copy from 'rollup-plugin-copy';
 import riot from 'rollup-plugin-riot';
 import scss from 'rollup-plugin-scss';
 import serve from 'rollup-plugin-serve';
 import { DEFAULT_MOCK_PORT } from './dev/mock-registry/server.js';
 import checkOutput from './rollup/check-output.js';
+import copyAssets from './rollup/copy-assets.js';
 import copyTransform from './rollup/copy-transform.js';
 import { applyDevConfig, devConfig } from './rollup/dev-config.js';
 import htmlUseref from './rollup/html-useref.js';
@@ -83,7 +83,7 @@ const plugins = [
   nodeResolve(),
   commonjs(),
   scss({ fileName: `docker-registry-ui.css`, outputStyle: 'compressed' }),
-  copy({
+  copyAssets({
     targets: [
       { src: 'src/fonts', dest: `${output}` },
       { src: '.version.json', dest: `${output}`, rename: 'version.json' },
