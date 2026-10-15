@@ -7,7 +7,7 @@
  */
 import assert from 'node:assert';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
@@ -40,19 +40,31 @@ const listFiles = (dir) =>
 
 describe('production build', () => {
   let out;
+  let versionFile;
+  let versionDir;
+  const rootVersionFile = join(root, '.version.json');
+  const rootVersionBefore = existsSync(rootVersionFile) ? readFileSync(rootVersionFile) : null;
   const read = (file) => readFileSync(join(out, file), 'utf8');
 
   before(function () {
     this.timeout(60000);
     mkdirSync(join(root, 'tmp'), { recursive: true });
     out = mkdtempSync(join(root, 'tmp', 'build-test-'));
+    // Outside `out`: the build empties its output directory.
+    versionDir = mkdtempSync(join(root, 'tmp', 'version-test-'));
+    versionFile = join(versionDir, 'version.json');
     const result = spawnSync(
       process.execPath,
       [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'build', '--outDir', out, '--emptyOutDir'],
       {
         cwd: root,
         encoding: 'utf8',
-        env: { ...process.env, COMMIT_HASH: 'abc1234', DEVELOPMENT_BUILD: 'abcdefghijklmnop' },
+        env: {
+          ...process.env,
+          COMMIT_HASH: 'abc1234',
+          DEVELOPMENT_BUILD: 'abcdefghijklmnop',
+          VERSION_FILE: versionFile,
+        },
       },
     );
     assert.equal(result.status, 0, `vite build failed:\n${result.stdout}\n${result.stderr}`);
@@ -60,6 +72,7 @@ describe('production build', () => {
 
   after(() => {
     if (out) rmSync(out, { recursive: true, force: true });
+    if (versionDir) rmSync(versionDir, { recursive: true, force: true });
   });
 
   it('should emit exactly the expected unhashed files', () => {
@@ -82,12 +95,26 @@ describe('production build', () => {
   it('should bundle the app as a classic-script IIFE', () => {
     const code = read('docker-registry-ui.js');
     assert.match(code, /^\/\*\s*\n \* Copyright/, 'the licence header should come first');
+    assert.match(
+      code,
+      /\*\/\s*"use strict";\s*\(function\(\)\{/,
+      'the IIFE should run in strict mode, as the dev server does',
+    );
     assert.doesNotMatch(code, /^\s*(import|export)\s/m);
     assert.doesNotMatch(code, /import\.meta/);
     // Parses as a script, not a module, and without running it.
     assert.doesNotThrow(() => new vm.Script(code));
-    assert.match(code, /\*\/\s*\(function\(\)\{/, 'the bundle should be a bare IIFE after the header');
     assert.match(code.trimEnd(), /\}\)\(\);$/);
+  });
+
+  it('should keep the third-party licence comments', () => {
+    assert.match(read('docker-registry-ui.js'), /@license MIT/);
+  });
+
+  it('should not touch the repository .version.json', () => {
+    const after = existsSync(rootVersionFile) ? readFileSync(rootVersionFile) : null;
+    assert.deepEqual(after, rootVersionBefore);
+    assert.ok(existsSync(versionFile), 'the scratch version file should have been written');
   });
 
   it('should not ship syntax beyond the README browser floor (ES2020)', () => {

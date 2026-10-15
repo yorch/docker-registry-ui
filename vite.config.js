@@ -11,6 +11,10 @@ import license from './build/license.js';
 import riot from './build/riot.js';
 import { createMockRegistry, DEFAULT_MOCK_PORT } from './dev/mock-registry/server.js';
 
+// Where the generated version file lives. Only the build test overrides it, so that
+// running the suite does not overwrite the real file a dev server may have loaded.
+const versionFile = path.resolve(process.env.VERSION_FILE || '.version.json');
+
 const version = JSON.parse(fs.readFileSync('./package.json', 'utf-8')).version;
 
 const getVersion = (version, serve) => {
@@ -75,7 +79,7 @@ const staticOutput = () => ({
   generateBundle() {
     const html = htmlUseref('./src/index.html', { developement: false, production: true });
     this.emitFile({ type: 'asset', fileName: 'index.html', source: html });
-    this.emitFile({ type: 'asset', fileName: 'version.json', source: fs.readFileSync('.version.json') });
+    this.emitFile({ type: 'asset', fileName: 'version.json', source: fs.readFileSync(versionFile) });
     for (const name of fs.readdirSync('src/images')) {
       const source = copyTransform(fs.readFileSync(path.join('src/images', name)), name);
       this.emitFile({ type: 'asset', fileName: `images/${name}`, source });
@@ -123,7 +127,7 @@ const devServer = ({ config, mock }) => ({
 export default defineConfig(({ command }) => {
   const serve = command === 'serve';
   fs.writeFileSync(
-    '.version.json',
+    versionFile,
     JSON.stringify({ version: getVersion(version, serve), latest: version, commit: getCommitHash() }),
   );
   // Setting REGISTRY_URL says you have a registry of your own, so the mock stays
@@ -136,6 +140,12 @@ export default defineConfig(({ command }) => {
     publicDir: false,
     appType: 'custom',
     plugins: [
+      {
+        // src imports `.version.json` by name; point that at the file written above.
+        name: 'version-file',
+        enforce: 'pre',
+        resolveId: (source) => (source.endsWith('.version.json') ? versionFile : null),
+      },
       riot(),
       svgAsDom(),
       staticOutput(),
@@ -173,6 +183,11 @@ export default defineConfig(({ command }) => {
             return 'assets/[name][extname]';
           },
           postBanner: license,
+          // Vite drops legal comments when minifying; keep the third-party licences.
+          comments: { legal: true },
+          // Without this the IIFE loses the "use strict" it had under Rollup, and
+          // production would run sloppy while the dev server's ES modules run strict.
+          strict: true,
         },
       },
     },

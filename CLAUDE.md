@@ -123,7 +123,9 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
   Add the build arg to any new image build, or its footer silently loses the hash.
 - **`.version.json` is consumed as a named ESM import**, so every key it can ever
   have must always be written. A key omitted because its value was undefined is a
-  build-time "missing export" error, not an `undefined` at runtime.
+  build-time "missing export" error, not an `undefined` at runtime. `VERSION_FILE`
+  moves where `vite.config.js` writes and resolves it; only `test/build.test.js` sets it,
+  so the suite does not overwrite the file a running dev server loaded.
 - **Riot template expressions resolve against the component, not module scope.**
   A value imported at the top of a `.riot` file is not reachable from `{ … }` in the
   template until it is also a property on the `export default` object — the compiler
