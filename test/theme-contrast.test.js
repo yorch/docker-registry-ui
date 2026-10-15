@@ -4,7 +4,9 @@
  * muted text colour need 4.5:1, control boundaries need 3:1 (WCAG 1.4.3, 1.4.11).
  */
 import assert from 'node:assert';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const css = readFileSync(new URL('../src/styles/tokens.scss', import.meta.url), 'utf8');
 
@@ -47,3 +49,35 @@ for (const [name, t] of Object.entries(themes)) {
     }
   });
 }
+
+/*
+ * --border is a decorative divider (1.59:1 on surface). Anything a user has to
+ * find and operate -- a field, a select, the registry trigger pill -- draws its
+ * boundary with --border-strong, or the contrast checks above guard nothing.
+ */
+describe('control borders', () => {
+  const walk = (dir) =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+      entry.isDirectory()
+        ? walk(join(dir, entry.name))
+        : /\.(scss|riot)$/.test(entry.name)
+          ? [join(dir, entry.name)]
+          : [],
+    );
+  const CONTROL = /input|select|textarea|trigger|text-field|\.btn\b|button/;
+
+  it('should not draw the boundary of a form control or trigger with --border', () => {
+    const offenders = [];
+    for (const file of walk(fileURLToPath(new URL('../src', import.meta.url)))) {
+      const text = readFileSync(file, 'utf8');
+      const source = file.endsWith('.riot') ? text.slice(text.indexOf('<style>')) : text;
+      for (const [, selector, body] of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const usesDivider = /\bborder(?:-color)?:[^;]*var\(--border\)/.test(body);
+        if (usesDivider && CONTROL.test(selector)) {
+          offenders.push(`${file}: ${selector.trim()}`);
+        }
+      }
+    }
+    assert.deepEqual(offenders, []);
+  });
+});
