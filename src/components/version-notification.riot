@@ -60,29 +60,45 @@
         const oReq = new Http();
         const self = this;
 
+        // The check is only skipped for as long as the user is told: a week
+        // after an answer, a day after a failure.
+        const fail = (detail) => {
+          localStorage.setItem(EXPIRES, new Date().getTime() + ONE_DAY);
+          props.onNotify('Cannot check for new updates. Will try again in 24 hours. See the browser console.');
+
+          console.error(
+            `Cannot check for new Registry Explorer updates. This is most likely a GitHub issue. You don't need to worry about it.`
+          );
+
+          console.error(detail);
+        };
+
         oReq.addEventListener('load', function () {
-          // The check is only skipped for as long as the user is told: a week
-          // after an answer, a day after a failure.
-          const retryAfter = this.status === 200 || this.status === 404 ? ONE_WEEK : ONE_DAY;
-          localStorage.setItem(EXPIRES, new Date().getTime() + retryAfter);
-          if (this.status === 200) {
+          if (this.status === 404) {
+            // Should not notify if the project is not found.
+            localStorage.setItem(EXPIRES, new Date().getTime() + ONE_WEEK);
+          } else if (this.status === 200) {
             const latest = parseJSON(this.responseText);
-            if (latest && self.state.tag_name !== latest.tag_name && !isNewestVersion(props.version, latest.tag_name)) {
+            if (!latest || typeof latest.tag_name !== 'string') {
+              fail(`Got a 200 response from Github API that is not a release: ${this.responseText}`);
+              return;
+            }
+            localStorage.setItem(EXPIRES, new Date().getTime() + ONE_WEEK);
+            if (self.state.tag_name !== latest.tag_name && !isNewestVersion(props.version, latest.tag_name)) {
               props.onNotify('A new version of Registry Explorer is available!');
             }
             localStorage.setItem(LATEST, this.responseText);
             self.update({ tag_name: latest.tag_name, latest });
-          } else if (this.status !== 404) {
-            // Should not notify if the project is not found.
-            props.onNotify('Cannot check for new updates. Will try again in 24 hours. See the browser console.');
-
-            console.error(
-              `Cannot check for new Registry Explorer updates. This is most likely a GitHub issue. You don't need to worry about it.`
-            );
-
-            console.error(`Got status code ${this.status} from Github API with response ${this.responseText}`);
+          } else {
+            fail(`Got status code ${this.status} from Github API with response ${this.responseText}`);
           }
         });
+
+        // No response at all (offline, CORS, blocked, timed out): same retry as
+        // any other failure, otherwise every page load asks again.
+        for (const event of ['error', 'timeout', 'abort']) {
+          oReq.addEventListener(event, () => fail(`The request to Github API ended with: ${event}`));
+        }
 
         oReq.open('GET', 'https://api.github.com/repos/yorch/docker-registry-ui/releases/latest');
         oReq.send();

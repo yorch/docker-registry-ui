@@ -22,6 +22,10 @@ class FakeXHR {
   getResponseHeader() {
     return null;
   }
+  fail(name) {
+    this.listeners[name]?.call(this);
+    this.listeners.loadend?.call(this);
+  }
   respond(status, body) {
     this.status = status;
     this.responseText = body;
@@ -81,6 +85,37 @@ describe('version notification', () => {
     const expires = Number(localStorage.getItem(EXPIRES));
     assert.ok(expires <= before + DAY + 1000, `expiry should be about a day out, was ${(expires - before) / DAY} days`);
   });
+
+  for (const name of ['error', 'timeout', 'abort']) {
+    it(`should retry within a day when the request ends in ${name} (network-level failure)`, () => {
+      mount();
+      const before = Date.now();
+      FakeXHR.instances[0].status = 0;
+      FakeXHR.instances[0].responseText = '';
+      FakeXHR.instances[0].fail(name);
+      const expires = Number(localStorage.getItem(EXPIRES));
+      assert.ok(expires >= before + DAY - 1000 && expires <= Date.now() + DAY + 1000, `was ${expires}`);
+      assert.equal(notes.length, 1);
+      assert.match(notes[0], /24 hours/);
+    });
+  }
+
+  for (const [label, body] of [
+    ['is not JSON', '<html>captive portal</html>'],
+    ['has no tag_name', JSON.stringify({ message: 'hi' })],
+  ]) {
+    it(`should treat a 200 whose body ${label} as a failed check`, () => {
+      const instance = mount();
+      const before = Date.now();
+      assert.doesNotThrow(() => FakeXHR.instances[0].respond(200, body));
+      const expires = Number(localStorage.getItem(EXPIRES));
+      assert.ok(expires >= before + DAY - 1000 && expires <= Date.now() + DAY + 1000, `was ${expires}`);
+      assert.equal(notes.length, 1);
+      assert.match(notes[0], /Cannot check/);
+      assert.equal(localStorage.getItem(LATEST), null);
+      assert.equal(instance.$('button'), null);
+    });
+  }
 
   it('should wait a week after a successful check', () => {
     mount();

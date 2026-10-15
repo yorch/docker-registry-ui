@@ -191,8 +191,7 @@ Behaviour changes worth knowing about:
 - **Retention:** the dialog's fresh alias check still costs one uncached manifest GET per
   tag; an index referenced only by digest cannot be found through the tag list; there is
   no UI toggle for `deleteCosignTags`.
-- **Smaller:** `version-notification` never writes its expiry when the request fails at
-  the network level and throws on a non-JSON 200; `bin/fill-registry` is unreferenced;
+- **Smaller:** `bin/fill-registry` is unreferenced;
   about 55 lines of unused `.switch` CSS; `MAX_CACHE_BYTES` unused; `core-js` is
   injected by a stale Babel `corejs: 2` config (fix the Babel config, not the
   dependency); 9 dev-only `npm audit` findings need breaking upgrades; no `HEALTHCHECK`
