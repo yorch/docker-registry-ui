@@ -37,6 +37,9 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
 
 ## Conventions
 
+- **Dependencies are pinned to exact versions** in `package.json` (no `^`), and `.npmrc`
+  sets `save-exact=true` so `npm install <pkg>` keeps it that way. Dependabot opens the
+  bump PRs; update by hand with `npm install --save-exact <pkg>@<version>`.
 - Components are Riot single-file components (`.riot`) under `src/components/`.
 - **Biome does not format `.riot` files, and neither did Prettier before it.**
   Neither tool can parse Riot SFCs. Format them by hand, matching surrounding style.
