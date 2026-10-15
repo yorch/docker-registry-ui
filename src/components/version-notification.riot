@@ -57,30 +57,67 @@
         this.update({ open: true });
       },
       checkForUpdates(props, state) {
-        const oReq = new Http();
+        // noCache: the answer is stored in localStorage below, and a stale
+        // cached one would hide a release. A 401 (rate limiting through a
+        // proxy, say) is a failed check like any other HTTP failure.
+        const oReq = new Http({ noCache: true, onAuthentication: () => failHttp(401, '') });
         const self = this;
+        let aborted = false;
 
-        oReq.addEventListener('load', function () {
-          // The check is only skipped for as long as the user is told: a week
-          // after an answer, a day after a failure.
-          const retryAfter = this.status === 200 || this.status === 404 ? ONE_WEEK : ONE_DAY;
-          localStorage.setItem(EXPIRES, new Date().getTime() + retryAfter);
-          if (this.status === 200) {
+        // The check is only skipped for as long as the user is told: a week
+        // after an answer, a day after a failure. Storage can be full or
+        // blocked; that must never stop the user hearing about the failure.
+        const remember = (retryAfter) => {
+          try {
+            localStorage.setItem(EXPIRES, new Date().getTime() + retryAfter);
+          } catch (_e) {}
+        };
+        const failHttp = (status, body) => {
+          remember(ONE_DAY);
+          props.onNotify('Cannot check for new updates. Will try again in 24 hours. See the browser console.');
+
+          console.error(
+            `Cannot check for new Registry Explorer updates. This is most likely a GitHub issue. You don't need to worry about it.`
+          );
+
+          console.error(`Got status code ${status} from Github API with response ${body}`);
+        };
+
+        // The abort event comes just before loadend and only tells us the page
+        // is going away; that must not postpone the next check.
+        oReq.addEventListener('abort', () => {
+          aborted = true;
+        });
+
+        // loadend, not load: it also fires for a 401 and for requests that
+        // never got a response.
+        oReq.addEventListener('loadend', function () {
+          if (this.status === 0) {
+            // Offline, air-gapped, CORS or blocked: expected on installs with
+            // no route to GitHub, so retry in a day without a toast.
+            if (!aborted) {
+              remember(ONE_DAY);
+              console.warn('Cannot reach the Github API to check for new Registry Explorer versions.');
+            }
+          } else if (this.status === 404) {
+            // Should not notify if the project is not found.
+            remember(ONE_WEEK);
+          } else if (this.status === 200) {
             const latest = parseJSON(this.responseText);
-            if (latest && self.state.tag_name !== latest.tag_name && !isNewestVersion(props.version, latest.tag_name)) {
+            if (!latest || !latest.tag_name || typeof latest.tag_name !== 'string') {
+              failHttp(200, this.responseText);
+              return;
+            }
+            remember(ONE_WEEK);
+            if (self.state.tag_name !== latest.tag_name && !isNewestVersion(props.version, latest.tag_name)) {
               props.onNotify('A new version of Registry Explorer is available!');
             }
-            localStorage.setItem(LATEST, this.responseText);
+            try {
+              localStorage.setItem(LATEST, this.responseText);
+            } catch (_e) {}
             self.update({ tag_name: latest.tag_name, latest });
-          } else if (this.status !== 404) {
-            // Should not notify if the project is not found.
-            props.onNotify('Cannot check for new updates. Will try again in 24 hours. See the browser console.');
-
-            console.error(
-              `Cannot check for new Registry Explorer updates. This is most likely a GitHub issue. You don't need to worry about it.`
-            );
-
-            console.error(`Got status code ${this.status} from Github API with response ${this.responseText}`);
+          } else {
+            failHttp(this.status, this.responseText);
           }
         });
 

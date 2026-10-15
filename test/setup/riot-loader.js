@@ -15,6 +15,11 @@ registerPreprocessor('css', 'scss', () => ({ code: '', map: null }));
 // resolver accepts but Node's ESM resolver does not. Only used as a fallback,
 // so a genuinely missing module still reports the specifier that was asked for.
 export async function resolve(specifier, context, nextResolve) {
+  // `.version.json` is written by rollup.config.js and is gitignored, so a
+  // fresh checkout has none. Tests of the app shell get a fixed stand-in.
+  if (specifier.endsWith('/.version.json')) {
+    return { url: 'test-stub:version', shortCircuit: true };
+  }
   try {
     return await nextResolve(specifier, context);
   } catch (error) {
@@ -26,6 +31,10 @@ export async function resolve(specifier, context, nextResolve) {
 }
 
 export async function load(url, context, nextLoad) {
+  if (url === 'test-stub:version') {
+    const source = 'export const version = "0.0.0-test"; export const latest = "0.0.0-test"; export const commit = "";';
+    return { format: 'module', shortCircuit: true, source };
+  }
   // rollup's import-svg plugin turns an svg import into a function returning a
   // parsed document. Tests never look at the artwork, so a stub is enough.
   if (url.endsWith('.svg')) {

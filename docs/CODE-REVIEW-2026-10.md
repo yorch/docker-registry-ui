@@ -186,19 +186,16 @@ Behaviour changes worth knowing about:
   compromised; scrubbing history is a rewrite.
 - **Repository admin:** branch protection on `main` (see below).
 - **Nothing verified in a real browser or screen reader:** the dialog focus trap, live
-  regions and `goHome()` are covered by jsdom tests only; the "Add registry" dialog does
-  not return focus (its opener closes with the popover).
+  regions and `goHome()` are covered by jsdom tests only.
 - **Retention:** the dialog's fresh alias check still costs one uncached manifest GET per
   tag; an index referenced only by digest cannot be found through the tag list; there is
   no UI toggle for `deleteCosignTags`.
-- **Smaller:** `version-notification` never writes its expiry when the request fails at
-  the network level and throws on a non-JSON 200; `bin/fill-registry` is unreferenced;
+- **Smaller:** `bin/fill-registry` is unreferenced;
   about 55 lines of unused `.switch` CSS; `MAX_CACHE_BYTES` unused; `core-js` is
   injected by a stale Babel `corejs: 2` config (fix the Babel config, not the
   dependency); 9 dev-only `npm audit` findings need breaking upgrades; no `HEALTHCHECK`
   and no non-root default; topbar overflow at 320 to 375px and the snackbar over the
-  selection bar on mobile are unverified; text fields inside the registry-menu trigger
-  still use `--border`; the error page now has two `h1`s; `M-SEC-6` mock registry still
+  selection bar on mobile are unverified; `M-SEC-6` mock registry still
   binds all interfaces with `ACAO: *`; the Keycloak example now starts from a blank
   realm.
 
