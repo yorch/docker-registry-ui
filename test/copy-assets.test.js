@@ -47,6 +47,14 @@ describe('copy-assets rollup plugin', () => {
     assert.strictEqual(read('out/images/two.png'), '2');
   });
 
+  it('should skip dotfiles when expanding a /*', async () => {
+    write('src/images/one.svg', '1');
+    write('src/images/.DS_Store', 'junk');
+    await run([{ src: path.join(root, 'src/images/*'), dest: path.join(root, 'out/images') }]);
+    assert.ok(fs.existsSync(path.join(root, 'out/images/one.svg')));
+    assert.ok(!fs.existsSync(path.join(root, 'out/images/.DS_Store')));
+  });
+
   it('should run the transform with the contents as a Buffer and the file name', async () => {
     write('src/images/one.svg', 'x');
     write('src/images/two.png', 'y');

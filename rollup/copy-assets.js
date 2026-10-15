@@ -9,7 +9,7 @@
  * - `dest` is a directory; the source keeps its base name inside it unless
  *   `rename` (a string) replaces it.
  * - `src` is a file, a directory (copied recursively, under its own name), or
- *   `some/dir/*`, the files directly inside a directory.
+ *   `some/dir/*`, the entries directly inside a directory, dotfiles skipped.
  * - `transform(contents, name)` receives a file's contents as a Buffer plus its
  *   base name and returns the string or Buffer to write instead. Files only.
  *
@@ -25,7 +25,10 @@ const expand = (src) => {
     return [src];
   }
   const dir = src.slice(0, -2);
-  return fs.readdirSync(dir).map((name) => path.join(dir, name));
+  return fs
+    .readdirSync(dir)
+    .filter((name) => !name.startsWith('.'))
+    .map((name) => path.join(dir, name));
 };
 
 const copyOne = (src, dest, { rename, transform }) => {
