@@ -56,7 +56,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
-  # Build both images without pushing. rollup.config.js reaches into dev/, and
+  # Build both images without pushing. vite.config.js reaches into dev/, and
   # .dockerignore allowlists what the build stage may COPY, so a new top-level
   # directory that is missing from the allowlist builds fine locally and only
   # fails in the image build. Catch that on the PR rather than at release time.

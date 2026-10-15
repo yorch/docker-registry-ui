@@ -1,8 +1,8 @@
 *
 !src
-!rollup
+!build
 !dev
-!rollup.config.js
+!vite.config.js
 !package.json
 !package-lock.json
 !bin

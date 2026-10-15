@@ -12,7 +12,6 @@
       "!**/*.riot",
       "!src/index.html",
       "!dist",
-      "!.serve",
       "!node_modules",
       "!package-lock.json",
       "!examples/electron",
