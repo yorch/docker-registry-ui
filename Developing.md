@@ -23,6 +23,9 @@ Open <http://localhost:8000>. You get a populated interface straight away: with 
 `REGISTRY_URL` set, a mock registry starts alongside the dev server on port 5555
 and serves a catalogue built for developing against.
 
+The dev server used to write a `.serve/` directory. If you have one left over from before the
+move to Vite, delete it with `rm -rf .serve`; it is no longer used.
+
 ### Configuration
 
 Settings come from the environment, using the same variable names as the

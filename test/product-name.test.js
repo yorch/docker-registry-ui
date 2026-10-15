@@ -37,7 +37,7 @@ const IDENTIFIER = /docker-registry-ui|DOCKER_REGISTRY_UI/;
 const OLD_NAME = /docker\s+registry\s+(ui|user interface)/i;
 
 // Directories that hold dependencies, build output or local scratch, never source.
-const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'tmp', '_site', '_build', '.idea', '.claude']);
+const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'tmp', '.serve', '_site', '_build', '.idea', '.claude']);
 
 const walk = (dir, relative = '') =>
   readdirSync(join(dir, relative), { withFileTypes: true }).flatMap((entry) => {
