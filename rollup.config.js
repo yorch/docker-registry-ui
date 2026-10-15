@@ -1,6 +1,5 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import { babel } from '@rollup/plugin-babel';
 import commonjs from '@rollup/plugin-commonjs';
 import html from '@rollup/plugin-html';
 import json from '@rollup/plugin-json';
@@ -84,7 +83,6 @@ const plugins = [
   nodeResolve(),
   commonjs(),
   scss({ fileName: `docker-registry-ui.css`, outputStyle: 'compressed' }),
-  babel({ babelHelpers: 'bundled', presets: [['@babel/env', { useBuiltIns: 'usage', corejs: { version: '2' } }]] }),
   copy({
     targets: [
       { src: 'src/fonts', dest: `${output}` },
