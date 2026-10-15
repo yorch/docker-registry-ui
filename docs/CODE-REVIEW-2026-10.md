@@ -197,7 +197,7 @@ Behaviour changes worth knowing about:
   dependency); 9 dev-only `npm audit` findings need breaking upgrades; no `HEALTHCHECK`
   and no non-root default; topbar overflow at 320 to 375px and the snackbar over the
   selection bar on mobile are unverified; text fields inside the registry-menu trigger
-  still use `--border`; the error page now has two `h1`s; `M-SEC-6` mock registry still
+  still use `--border`; `M-SEC-6` mock registry still
   binds all interfaces with `ACAO: *`; the Keycloak example now starts from a blank
   realm.
 
