@@ -53,6 +53,20 @@ describe('add registry dialog focus', () => {
     assert.equal(document.activeElement, menu.$('.registry-trigger'));
   });
 
+  it('should return focus to the trigger when a click did not focus the opener (Safari, Firefox on macOS)', () => {
+    menu.unmount();
+    document.body.replaceChildren();
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    menu = component(RegistryMenu)(root, { registryUrl: 'https://registry.example.com', onNotify() {} });
+    document.activeElement?.blur();
+    menu.$('.registry-trigger').click();
+    [...menu.root.querySelectorAll('.popover-actions .btn')].find((b) => /Add registry/.test(b.textContent)).click();
+    assert.ok(menu.$('[role=dialog]'));
+    [...menu.root.querySelectorAll('[role=dialog] .btn')].find((b) => b.textContent.trim() === 'Cancel').click();
+    assert.equal(document.activeElement, menu.$('.registry-trigger'));
+  });
+
   it('should return focus to the registry trigger when the dialog is closed with Escape', () => {
     document.activeElement.dispatchEvent(
       new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),

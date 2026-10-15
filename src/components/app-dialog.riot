@@ -57,7 +57,10 @@
           this._opener = null;
           // An opener that closed along with the dialog's launch (a popover
           // item) is gone; the caller can name something that still exists.
-          if (!target?.isConnected && typeof this.props.returnFocus === 'function') {
+          // A click does not focus a button in Safari or Firefox on macOS, so
+          // an opener of document.body means there was none either.
+          const gone = !target || target === document.body || !target.isConnected;
+          if (gone && typeof this.props.returnFocus === 'function') {
             target = this.props.returnFocus();
           }
           if (target && target.isConnected && typeof target.focus === 'function') {
