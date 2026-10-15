@@ -19,6 +19,9 @@ class FakeXHR {
   open() {}
   setRequestHeader() {}
   send() {}
+  getAllResponseHeaders() {
+    return '';
+  }
   getResponseHeader() {
     return null;
   }
@@ -86,23 +89,53 @@ describe('version notification', () => {
     assert.ok(expires <= before + DAY + 1000, `expiry should be about a day out, was ${(expires - before) / DAY} days`);
   });
 
-  for (const name of ['error', 'timeout', 'abort']) {
-    it(`should retry within a day when the request ends in ${name} (network-level failure)`, () => {
-      mount();
-      const before = Date.now();
-      FakeXHR.instances[0].status = 0;
-      FakeXHR.instances[0].responseText = '';
-      FakeXHR.instances[0].fail(name);
-      const expires = Number(localStorage.getItem(EXPIRES));
-      assert.ok(expires >= before + DAY - 1000 && expires <= Date.now() + DAY + 1000, `was ${expires}`);
-      assert.equal(notes.length, 1);
-      assert.match(notes[0], /24 hours/);
-    });
-  }
+  const near = (expires, from, offset) => expires >= from + offset - 1000 && expires <= Date.now() + offset + 1000;
+
+  it('should retry within a day, silently, when there is no response (offline, CORS, air-gapped)', () => {
+    mount();
+    const before = Date.now();
+    FakeXHR.instances[0].status = 0;
+    FakeXHR.instances[0].responseText = '';
+    FakeXHR.instances[0].fail('error');
+    assert.ok(near(Number(localStorage.getItem(EXPIRES)), before, DAY));
+    assert.deepEqual(notes, []);
+  });
+
+  it('should not postpone the next check when the request is aborted', () => {
+    mount();
+    FakeXHR.instances[0].status = 0;
+    FakeXHR.instances[0].responseText = '';
+    FakeXHR.instances[0].fail('abort');
+    assert.equal(localStorage.getItem(EXPIRES), null);
+    assert.deepEqual(notes, []);
+  });
+
+  it('should retry within a day and tell the user after a 401', () => {
+    mount();
+    const before = Date.now();
+    FakeXHR.instances[0].respond(401, 'bad credentials');
+    assert.ok(near(Number(localStorage.getItem(EXPIRES)), before, DAY));
+    assert.match(notes[0], /24 hours/);
+  });
+
+  it('should still tell the user when storage throws', () => {
+    mount();
+    const real = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new Error('QuotaExceededError');
+    };
+    try {
+      assert.doesNotThrow(() => FakeXHR.instances[0].respond(500, 'boom'));
+    } finally {
+      Storage.prototype.setItem = real;
+    }
+    assert.match(notes[0], /24 hours/);
+  });
 
   for (const [label, body] of [
     ['is not JSON', '<html>captive portal</html>'],
     ['has no tag_name', JSON.stringify({ message: 'hi' })],
+    ['has an empty tag_name', JSON.stringify({ tag_name: '' })],
   ]) {
     it(`should treat a 200 whose body ${label} as a failed check`, () => {
       const instance = mount();
