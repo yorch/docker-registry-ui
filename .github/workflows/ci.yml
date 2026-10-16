@@ -97,7 +97,17 @@ jobs:
             docker logs ui; exit 1
           }
           expect() { [ "$1" = "$2" ] || { echo "FAIL: $3: expected $2, got $1"; docker logs ui; exit 1; }; }
-          run
+          # The image's own HEALTHCHECK, on a faster cadence than the 30s default. The
+          # upstream is down on purpose, so this also proves the check ignores the registry.
+          healthy() {
+            for i in $(seq 1 30); do
+              [ "$(docker inspect --format '{{.State.Health.Status}}' ui)" = healthy ] && return 0
+              sleep 1
+            done
+            echo "FAIL: container did not become healthy"; docker inspect --format '{{json .State.Health}}' ui; docker logs ui; exit 1
+          }
+          run --health-interval 2s --health-start-period 1s
+          healthy
           expect "$(code -X DELETE http://localhost:8080/v2/x/manifests/sha256:0)" 403 "DELETE without DELETE_IMAGES"
           expect "$(code -X POST http://localhost:8080/v2/x/blobs/uploads/)" 502 "POST passes through"
           expect "$(code http://localhost:8080/v2/)" 502 "GET passes through"
@@ -108,4 +118,32 @@ jobs:
           docker restart ui >/dev/null
           for i in $(seq 1 30); do [ "$(code http://localhost:8080/)" = 200 ] && break; sleep 1; done
           expect "$(code -X DELETE http://localhost:8080/v2/x/manifests/sha256:0)" 502 "DELETE after restart"
+          docker rm -f ui >/dev/null
+      # Opt-in non-root run (see "Running as non-root" in the README): the entrypoint
+      # has to render index.html and the nginx config as the nginx user.
+      - name: Smoke test ${{ matrix.name }} (non-root)
+        run: |
+          set -eu
+          code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+          expect() { [ "$1" = "$2" ] || { echo "FAIL: $3: expected $2, got $1"; docker logs ui; exit 1; }; }
+          docker rm -f ui >/dev/null 2>&1 || true
+          docker run -d --name ui --user 101:101 -p 8081:8080 \
+            -e NGINX_LISTEN_PORT=8080 -e REGISTRY_URL=http://registry.ci.example:5000 \
+            -e NGINX_PROXY_PASS_URL=http://127.0.0.1:9 \
+            --health-interval 2s --health-start-period 1s \
+            registry-ui-ci:${{ matrix.name }} >/dev/null
+          for i in $(seq 1 30); do [ "$(code http://localhost:8081/)" = 200 ] && break; sleep 1; done
+          expect "$(code http://localhost:8081/)" 200 "/ as non-root"
+          curl -s http://localhost:8081/ | grep -q 'http://registry.ci.example:5000' || { echo "FAIL: REGISTRY_URL was not substituted"; docker logs ui; exit 1; }
+          if curl -s http://localhost:8081/ | grep -q '\${REGISTRY_URL}'; then echo "FAIL: placeholder left in index.html"; exit 1; fi
+          expect "$(code -X DELETE http://localhost:8081/v2/x/manifests/sha256:0)" 403 "DELETE without DELETE_IMAGES as non-root"
+          expect "$(code http://localhost:8081/v2/)" 502 "GET passes through as non-root"
+          for i in $(seq 1 30); do
+            [ "$(docker inspect --format '{{.State.Health.Status}}' ui)" = healthy ] && break
+            sleep 1
+          done
+          expect "$(docker inspect --format '{{.State.Health.Status}}' ui)" healthy "non-root health"
+          docker restart ui >/dev/null
+          for i in $(seq 1 30); do [ "$(code http://localhost:8081/)" = 200 ] && break; sleep 1; done
+          expect "$(code http://localhost:8081/)" 200 "/ after non-root restart"
           docker rm -f ui >/dev/null

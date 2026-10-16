@@ -39,6 +39,7 @@ const DOC_SECTIONS = [
   'Concepts',
   'Hidden Features',
   'Available options',
+  'Running as non-root',
   'Recommended Docker Registry Usage',
   'Using CORS',
   'Using delete',
