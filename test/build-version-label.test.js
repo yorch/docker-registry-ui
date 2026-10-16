@@ -30,7 +30,10 @@ const build = (env) => {
   return JSON.parse(readFileSync(join(outDir, 'version.json'), 'utf8'));
 };
 
-describe('version label for non-release builds', () => {
+describe('version label for non-release builds', function () {
+  // Each case runs a real `vite build`, which is slower on a CI runner.
+  this.timeout(60000);
+
   after(() => rmSync(scratch, { recursive: true, force: true }));
 
   it('should show the bare package version when no suffix is set', () => {
