@@ -38,7 +38,7 @@ Images are published to [`ghcr.io/yorch/docker-registry-ui`](https://github.com/
 * `latest`: image with the latest release of Registry Explorer based on `nginx:alpine`
 * `debian`: alias of `latest-debian`
 * `latest-debian`: image with the latest release of Registry Explorer based on `nginx:debian`
-* `main`: image with the beta version of Registry Explorer based on `nginx:alpine`
+* `main`: image with the beta version of Registry Explorer based on `nginx:alpine` (the footer shows the build, for example `3.4.0+main.abcdef1`, and links to the commit)
 * `main-debian`: image with the beta version of Registry Explorer based on `nginx:debian`
 * `3`: image with the latest release of Registry Explorer v3 (includes latest minor and patch version)
 * `3.x`: image with the latest release of Registry Explorer v3.x (includes latest patch version)
