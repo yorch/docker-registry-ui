@@ -15,6 +15,10 @@
       Deleting one tag removes every tag sharing the same manifest (SHA). Run
       <code>registry garbage-collect config.yml</code> on your registry to free the storage.
     </p>
+    <p class="warning">
+      Images referenced only by digest (for example an untagged multi-architecture index) cannot be detected; if you
+      pull by digest, check before deleting.
+    </p>
     <p class="progress" if="{ state.progress }" role="status">
       Checking tags { state.progress.done }/{ state.progress.total }
     </p>

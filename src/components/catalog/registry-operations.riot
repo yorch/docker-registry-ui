@@ -136,6 +136,10 @@
             </div>
           </div>
 
+          <p class="digest-only-note">
+            Images referenced only by digest (for example an untagged multi-architecture index) cannot be detected; if you pull by digest, check before deleting.
+          </p>
+
           <p if="{ !props.isImageRemoveActivated }" class="delete-disabled">
             Deletion is disabled by configuration. Set <code>DELETE_IMAGES=true</code> to enable execution; previews remain available.
           </p>
@@ -182,6 +186,9 @@
         <strong>{ selectedTagCount() } attached tags</strong>?
       </p>
       <p>This cannot be undone from the UI. The registry may retain blobs until an administrator runs server-side garbage collection.</p>
+      <p>
+        Images referenced only by digest (for example an untagged multi-architecture index) cannot be detected; if you pull by digest, check before deleting.
+      </p>
     </div>
     <div slot="footer" class="confirm-actions">
       <button class="btn" onclick="{ closeConfirm }" disabled="{ state.deleting }" type="button">Cancel</button>
@@ -744,6 +751,12 @@
       background: var(--surface);
       color: var(--text-primary);
       font: inherit;
+    }
+
+    :host .digest-only-note {
+      color: var(--text-secondary);
+      font-size: var(--fs-md);
+      margin: var(--space-3) 0 0;
     }
 
     :host .policy-grid input:focus-visible {

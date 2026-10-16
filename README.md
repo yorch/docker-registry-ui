@@ -287,6 +287,10 @@ http:
     Access-Control-Expose-Headers: ['Docker-Content-Digest', 'Link']
 ```
 
+Before every delete the UI re-reads the current digest of every tag in the repository to make sure nothing changed since the list was shown. It does this with a `HEAD` request per tag (digest from `Docker-Content-Digest`, type from `Content-Type`) and reads a manifest in full only for multi-architecture indexes, whose children it must check. If a registry rejects `HEAD`, or the response lacks either header, the UI falls back to a full `GET` for that tag. Either way the delete is refused when anything cannot be verified, and the dialog shows `Checking tags n/total` while it runs.
+
+**Limitation: images referenced only by digest cannot be detected.** The registry API offers no way to list which manifests reference a digest, so the UI finds parent indexes only through tags. A multi-architecture index that has no tag (it is pulled by digest) is invisible to it, and deleting one of its platform images would break pulls of that index. If you pull by digest, check before deleting. The delete dialog and the retention preview both repeat this warning.
+
 ## Registry example
 
 Example of docker registry configuration file:
