@@ -44,7 +44,7 @@ const normalizeKey = (k) =>
 const readThemeChoice = () => {
   try {
     return localStorage.getItem(LOCAL_STORAGE_THEME);
-  } catch (e) {
+  } catch {
     return null;
   }
 };
@@ -53,7 +53,7 @@ const readThemeChoice = () => {
 export const saveThemeChoice = (theme) => {
   try {
     localStorage.setItem(LOCAL_STORAGE_THEME, theme);
-  } catch (e) {
+  } catch {
     // Storage can be blocked; the choice then lasts for the session only.
   }
 };
