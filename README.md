@@ -141,7 +141,22 @@ Need more informations ? Try the [examples](https://github.com/yorch/docker-regi
 
 You can run the container with the unprivileged user `nginx`, see [Running as non-root](#running-as-non-root).
 
-The images declare a `HEALTHCHECK` that requests `/` from nginx (on `NGINX_LISTEN_PORT`, or `8080` for a non-root user without one). It checks the UI only: a registry behind `NGINX_PROXY_PASS_URL` being down does not make the container unhealthy. If `NGINX_LISTEN_PORT` binds an address that is not reachable from inside the container, replace or disable the check with `--health-cmd` or `--no-healthcheck`.
+The images declare a `HEALTHCHECK` that requests `/` from nginx on `NGINX_LISTEN_PORT` (`80`, or `8080` for a non-root user on `80`, as the entrypoint moves it). It checks the UI only: a registry behind `NGINX_PROXY_PASS_URL` being down does not make the container unhealthy. Each probe is a request to `/`, so it writes an access-log line every 30 seconds.
+
+The check assumes the stock `default.conf`. If you mount your own that moves the port (say to `9090` without changing `NGINX_LISTEN_PORT`), puts `auth_basic` on `location /`, or binds an address that is not reachable from inside the container, the container is reported `unhealthy` although it works, and orchestrators that act on health (Swarm, Compose `depends_on: condition: service_healthy`, autoheal tools) will react. A `401` is not treated as healthy on purpose: `403` can also mean a missing `index.html`, and one rule for both keeps a real failure from passing. Override the check instead:
+
+```bash
+docker run --no-healthcheck ...                                            # turn it off
+docker run --health-cmd 'wget -q -O /dev/null http://127.0.0.1:9090/' ...  # probe your own port (use curl on the debian image)
+```
+
+```yaml
+services:
+  ui:
+    image: ghcr.io/yorch/docker-registry-ui
+    healthcheck:
+      disable: true # or: test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/"]
+```
 
 The container renders these options into `index.html` and the nginx config on every start, from a pristine copy kept under `/etc/nginx/.registry-ui/`, so changing an environment variable and running `docker restart` takes effect. Values are escaped for the HTML attribute or nginx string they land in (a `$` in an `index.html` value is escaped too, so a value cannot pull in another variable); a newline in a value is replaced by a space in `index.html`. A file is only rendered while it still contains the `${...}` placeholders or `#!` lines of the stock files: a custom `default.conf` without them (for example the one in `examples/read-only-auth`) is left exactly as it is, and if the live file is edited between restarts the edited file becomes the new starting point. A file that cannot be written, such as a read-only mount, is reported as a warning and does not stop the container.
 
@@ -203,13 +218,13 @@ The container starts as root by default, as nginx's own image does, and listens 
 
 ```bash
 docker run -d --user 101:101 -e NGINX_LISTEN_PORT=8080 -p 8080:8080 \
-  -e NGINX_PROXY_PASS_URL=http://registry:5000 ghcr.io/yorch/docker-registry-ui
+  -e NGINX_PROXY_PASS_URL=http://your-registry:5000 ghcr.io/yorch/docker-registry-ui
 ```
 
 -   Use `--user 101:101` (or `--user nginx`). The files the entrypoint renders (`index.html`, `/etc/nginx/nginx.conf`, `/etc/nginx/conf.d/default.conf` and the pristine copies in `/etc/nginx/.registry-ui/`) belong to that user, so other uids, including a random one with group `0`, cannot render the configuration and nginx refuses to start.
--   Use a port of 1024 or higher. If `NGINX_LISTEN_PORT` is unset or `80`, a non-root user listens on `8080`.
+-   Use a port of 1024 or higher. If `NGINX_LISTEN_PORT` is `80` (the image default), a non-root user listens on `8080` instead; set it explicitly to choose another port.
 -   The entrypoint drops the `user` directive and moves the pid file to `/tmp/nginx.pid` for you. All the options, `docker restart` re-rendering and the `HEALTHCHECK` work as they do for root.
--   The base image only adds its IPv6 listener when started as root, so a non-root container listens on IPv4 only.
+-   The container listens on IPv4 only, as root or not, unless `NGINX_LISTEN_PORT` names an IPv6 address.
 -   `--read-only` is **not** supported: the entrypoint rewrites `index.html` and the nginx config on every start, so the root filesystem has to be writable.
 
 ## Recommended Docker Registry Usage
