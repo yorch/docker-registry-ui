@@ -397,13 +397,26 @@ export class RegistryClient {
    * digest (no tag) cannot be discovered through the tag list; that is a limit
    * of the registry API, not something this can close.
    *
+   * Every tag is read with a full GET and classified by its BODY, never by a
+   * response header: an index served with an image Content-Type would otherwise
+   * skip the walk and leave its platform images unprotected.
+   *
    * One snapshot per repository is both cheaper and more consistent than
    * re-reading between deletes: deleting one digest cannot change which tags
    * resolve to a different one.
    */
-  async currentAliases(repository) {
+  async currentAliases(repository, { onProgress } = {}) {
     const tags = await this.tags(repository);
-    const settled = await Promise.allSettled(tags.map((tag) => this.manifest(repository, tag, { noCache: true })));
+    let done = 0;
+    onProgress?.({ done, total: tags.length });
+    const settled = await Promise.allSettled(
+      tags.map((tag) =>
+        this.manifest(repository, tag, { noCache: true }).finally(() => {
+          done += 1;
+          onProgress?.({ done, total: tags.length });
+        }),
+      ),
+    );
     const aliases = new Map();
     const referenced = new Map();
     const manifests = settled.map((result, index) => {

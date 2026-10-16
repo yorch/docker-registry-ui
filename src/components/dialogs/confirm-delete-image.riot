@@ -15,6 +15,9 @@
       Deleting one tag removes every tag sharing the same manifest (SHA). Run
       <code>registry garbage-collect config.yml</code> on your registry to free the storage.
     </p>
+    <p class="progress" if="{ state.progress }" role="status">
+      Checking tags { state.progress.done }/{ state.progress.total }
+    </p>
     <div slot="footer">
       <button class="btn" onclick="{ close }" disabled="{ state.deleting }" type="button">Cancel</button>
       <button class="btn btn--danger" onclick="{ deleteImages }" disabled="{ state.deleting }" type="button">
@@ -119,7 +122,22 @@
         }
         const plan = [...groups.values()];
         const repositories = [...new Set(plan.map((entry) => entry.name))];
-        const aliasMaps = await Promise.allSettled(repositories.map((name) => client.currentAliases(name)));
+        // One repository at a time would hide the others' progress; show the sum.
+        const counts = new Map();
+        const onProgress = (name) => (progress) => {
+          counts.set(name, progress);
+          const values = [...counts.values()];
+          this.update({
+            progress: {
+              done: values.reduce((sum, value) => sum + value.done, 0),
+              total: values.reduce((sum, value) => sum + value.total, 0),
+            },
+          });
+        };
+        const aliasMaps = await Promise.allSettled(
+          repositories.map((name) => client.currentAliases(name, { onProgress: onProgress(name) })),
+        );
+        this.update({ progress: undefined });
         for (const [index, result] of aliasMaps.entries()) {
           if (result.status !== 'fulfilled') {
             onNotify(result.reason?.message || String(result.reason), true);
@@ -201,6 +219,12 @@
       color: var(--text-secondary);
       font-size: var(--fs-md);
       margin: var(--space-4) 0 0;
+    }
+
+    :host .progress {
+      color: var(--text-secondary);
+      font-size: var(--fs-md);
+      margin: var(--space-2) 0 0;
     }
 
     :host .warning code {
