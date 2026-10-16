@@ -34,7 +34,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     aria-label="Select tag { props.image.tag } for deletion"
   ></app-checkbox>
   <script>
-    import { ACTION_CHECK_TO_DELETE, ACTION_UNCHECK_TO_DELETE, ACTION_DELETE_IMAGE } from './tag-table.riot';
+    import { ACTION_CHECK_TO_DELETE, ACTION_UNCHECK_TO_DELETE, ACTION_DELETE_IMAGE } from '../../scripts/tag-actions';
     export default {
       onBeforeMount(props, state) {
         state.checked = props.checked;
