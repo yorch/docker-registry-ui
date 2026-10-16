@@ -116,13 +116,6 @@ const buildStore = (fixtures) => {
 export const DEFAULT_ALLOWED_ORIGINS = ['http://localhost', 'http://localhost:8000', 'http://127.0.0.1:8000'];
 export const DEFAULT_MOCK_HOST = '127.0.0.1';
 
-const originsFromEnv = () =>
-  process.env.MOCK_REGISTRY_ORIGINS
-    ? process.env.MOCK_REGISTRY_ORIGINS.split(',')
-        .map((origin) => origin.trim())
-        .filter(Boolean)
-    : DEFAULT_ALLOWED_ORIGINS;
-
 const STATIC_CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'HEAD, GET, OPTIONS, DELETE',
   'Access-Control-Allow-Headers': 'Authorization, Accept, Cache-Control',
@@ -178,8 +171,8 @@ export const DEFAULT_MOCK_PORT = 5555;
 
 export const createMockRegistry = async ({
   port = DEFAULT_MOCK_PORT,
-  host = process.env.MOCK_REGISTRY_HOST || DEFAULT_MOCK_HOST,
-  allowedOrigins = originsFromEnv(),
+  host = DEFAULT_MOCK_HOST,
+  allowedOrigins = DEFAULT_ALLOWED_ORIGINS,
   fixtures = defaultFixtures,
   latency = 0,
   allowDelete = true,

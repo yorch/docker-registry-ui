@@ -249,8 +249,6 @@ describe('mock registry exposure', () => {
   let registry;
   afterEach(async () => {
     await registry?.close();
-    delete process.env.MOCK_REGISTRY_HOST;
-    delete process.env.MOCK_REGISTRY_ORIGINS;
   });
 
   const preflight = (origin) =>
@@ -261,13 +259,26 @@ describe('mock registry exposure', () => {
     assert.equal(registry.host, '127.0.0.1');
   });
 
-  it('should honour the host option and MOCK_REGISTRY_HOST', async () => {
+  it('should honour the host option', async () => {
     registry = await createMockRegistry({ port: 0, host: '::1' });
     assert.equal(registry.host, '::1');
-    await registry.close();
-    process.env.MOCK_REGISTRY_HOST = 'localhost';
-    registry = await createMockRegistry({ port: 0 });
-    assert.equal(registry.host, 'localhost');
+  });
+
+  it('should ignore MOCK_REGISTRY_HOST and MOCK_REGISTRY_ORIGINS (only the dev server reads them)', async () => {
+    const names = ['MOCK_REGISTRY_HOST', 'MOCK_REGISTRY_ORIGINS'];
+    const saved = names.map((name) => process.env[name]);
+    process.env.MOCK_REGISTRY_HOST = '0.0.0.0';
+    process.env.MOCK_REGISTRY_ORIGINS = 'http://localhost:9000';
+    try {
+      registry = await createMockRegistry({ port: 0 });
+      assert.equal(registry.host, '127.0.0.1');
+      assert.equal((await preflight('http://localhost:9000')).headers.get('Access-Control-Allow-Origin'), null);
+    } finally {
+      names.forEach((name, i) => {
+        if (saved[i] === undefined) delete process.env[name];
+        else process.env[name] = saved[i];
+      });
+    }
   });
 
   it('should allow the dev server origin and nothing else by default', async () => {
@@ -288,17 +299,13 @@ describe('mock registry exposure', () => {
     assert.equal(response.headers.get('Access-Control-Allow-Origin'), 'http://localhost');
   });
 
-  it('should allow the origins given by option or MOCK_REGISTRY_ORIGINS', async () => {
+  it('should allow the origins given by the option', async () => {
     registry = await createMockRegistry({ port: 0, allowedOrigins: ['http://localhost:9000'] });
     assert.equal(
       (await preflight('http://localhost:9000')).headers.get('Access-Control-Allow-Origin'),
       'http://localhost:9000',
     );
     assert.equal((await preflight('http://localhost:8000')).headers.get('Access-Control-Allow-Origin'), null);
-    await registry.close();
-    process.env.MOCK_REGISTRY_ORIGINS = 'http://a.test:1, http://b.test:2';
-    registry = await createMockRegistry({ port: 0 });
-    assert.equal((await preflight('http://b.test:2')).headers.get('Access-Control-Allow-Origin'), 'http://b.test:2');
   });
 
   it('should allow any origin when the list is *', async () => {

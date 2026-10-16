@@ -81,7 +81,7 @@ CORS only for the dev server (`http://localhost:8000`, `http://127.0.0.1:8000`),
 which is also the origin the e2e run uses, and for the unit tests' jsdom window
 (`http://localhost`). `MOCK_REGISTRY_ORIGINS` takes a
 comma-separated list; `*` allows any page, so only use it on a loopback bind.
-`createMockRegistry` takes the same settings as `host` and `allowedOrigins`.
+The env vars are read by the dev server (`vite.config.js`) only; `createMockRegistry` takes `host` and `allowedOrigins` options and ignores the environment.
 
 Latency is worth reaching for: several bugs in this UI only appear while a
 request is still in flight, and are invisible against an instant local backend.

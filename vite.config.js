@@ -134,6 +134,13 @@ export default defineConfig(({ command }) => {
   // out of the way. Leaving it unset gets you one, which is what makes a bare
   // `npm start` show a populated interface.
   const mockPort = Number(process.env.MOCK_REGISTRY_PORT) || DEFAULT_MOCK_PORT;
+  // Unset means the module's defaults (loopback, the dev origins).
+  const mockHost = process.env.MOCK_REGISTRY_HOST || undefined;
+  const mockOrigins = process.env.MOCK_REGISTRY_ORIGINS
+    ? process.env.MOCK_REGISTRY_ORIGINS.split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean)
+    : undefined;
   return {
     root: '.',
     base: './',
@@ -152,7 +159,14 @@ export default defineConfig(({ command }) => {
       { ...checkOutput(), apply: 'build' },
       devServer({
         config: devConfig({ ...process.env, REGISTRY_URL: process.env.REGISTRY_URL || `http://localhost:${mockPort}` }),
-        mock: process.env.REGISTRY_URL ? null : { port: mockPort, latency: Number(process.env.MOCK_LATENCY_MS) || 0 },
+        mock: process.env.REGISTRY_URL
+          ? null
+          : {
+              port: mockPort,
+              host: mockHost,
+              allowedOrigins: mockOrigins,
+              latency: Number(process.env.MOCK_LATENCY_MS) || 0,
+            },
       }),
     ],
     server: { host: 'localhost', port: 8000, strictPort: true },
