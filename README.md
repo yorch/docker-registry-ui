@@ -125,7 +125,7 @@ Checkout all options in [Available options](#available-options) section.
 -   Why when I delete one tag, all tags with the same SHA are deleted ?
     - This a docker registry API limitation, there is only one way to [delete images with tag](https://docs.docker.com/registry/spec/api/#deleting-an-image), it's by its `name` and its `manifest` (it's a sha of the content). So when you delete a tag, this will delete all tags of this image with the same SHA/manifest.
 -   Can I run the container with an unprivileged user ?
-    - Yes you can run the container with the `nginx` user with the option `--user nginx`, this will also update the listen port to `8080` (see [#224](https://github.com/Joxit/docker-registry-ui/issues/224) and [#234](https://github.com/Joxit/docker-registry-ui/pull/234)).
+    - Yes, see [Running as non-root](#running-as-non-root). With `--user nginx` the listen port also becomes `8080` (see [#224](https://github.com/Joxit/docker-registry-ui/issues/224) and [#234](https://github.com/Joxit/docker-registry-ui/pull/234)).
 -   Can I use the UI with a docker hub mirror and show `library/*` images ?
     - Yes but it is at your own risk using two regstry servers, check the comment [#155](https://github.com/Joxit/docker-registry-ui/issues/155#issuecomment-1286052124).
 -   How to fix CORS issue on s3 bucket ?
@@ -139,7 +139,9 @@ Need more informations ? Try the [examples](https://github.com/yorch/docker-regi
 
 ## Available options
 
-You can run the container with the unprivileged user `nginx`, see the discussion [#224](https://github.com/Joxit/docker-registry-ui/issues/224).
+You can run the container with the unprivileged user `nginx`, see [Running as non-root](#running-as-non-root).
+
+The images declare a `HEALTHCHECK` that requests `/` from nginx (on `NGINX_LISTEN_PORT`, or `8080` for a non-root user without one). It checks the UI only: a registry behind `NGINX_PROXY_PASS_URL` being down does not make the container unhealthy. If `NGINX_LISTEN_PORT` binds an address that is not reachable from inside the container, replace or disable the check with `--health-cmd` or `--no-healthcheck`.
 
 The container renders these options into `index.html` and the nginx config on every start, from a pristine copy kept under `/etc/nginx/.registry-ui/`, so changing an environment variable and running `docker restart` takes effect. Values are escaped for the HTML attribute or nginx string they land in (a `$` in an `index.html` value is escaped too, so a value cannot pull in another variable); a newline in a value is replaced by a space in `index.html`. A file is only rendered while it still contains the `${...}` placeholders or `#!` lines of the stock files: a custom `default.conf` without them (for example the one in `examples/read-only-auth`) is left exactly as it is, and if the live file is edited between restarts the edited file becomes the new starting point. A file that cannot be written, such as a read-only mount, is reported as a warning and does not stop the container.
 
@@ -194,6 +196,21 @@ The default palettes follow a modern SaaS look (neutral surfaces + green accent)
 | `THEME_FOOTER_TEXT` | `--footer-text` | `#475569` | `#9fb2c8` |
 | `THEME_FOOTER_NEUTRAL_TEXT` | `--footer-neutral-text` | `#5b6676` | `#8497b3` |
 | `THEME_FOOTER_BACKGROUND` | `--footer-background` | `#ffffff` | `#111a2c` |
+
+## Running as non-root
+
+The container starts as root by default, as nginx's own image does, and listens on port 80. To run it as the unprivileged `nginx` user (uid/gid 101) instead:
+
+```bash
+docker run -d --user 101:101 -e NGINX_LISTEN_PORT=8080 -p 8080:8080 \
+  -e NGINX_PROXY_PASS_URL=http://registry:5000 ghcr.io/yorch/docker-registry-ui
+```
+
+-   Use `--user 101:101` (or `--user nginx`). The files the entrypoint renders (`index.html`, `/etc/nginx/nginx.conf`, `/etc/nginx/conf.d/default.conf` and the pristine copies in `/etc/nginx/.registry-ui/`) belong to that user, so other uids, including a random one with group `0`, cannot render the configuration and nginx refuses to start.
+-   Use a port of 1024 or higher. If `NGINX_LISTEN_PORT` is unset or `80`, a non-root user listens on `8080`.
+-   The entrypoint drops the `user` directive and moves the pid file to `/tmp/nginx.pid` for you. All the options, `docker restart` re-rendering and the `HEALTHCHECK` work as they do for root.
+-   The base image only adds its IPv6 listener when started as root, so a non-root container listens on IPv4 only.
+-   `--read-only` is **not** supported: the entrypoint rewrites `index.html` and the nginx config on every start, so the root filesystem has to be writable.
 
 ## Recommended Docker Registry Usage
 
