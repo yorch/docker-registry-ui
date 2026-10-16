@@ -21,7 +21,7 @@ const TAG_MANIFEST_REGEX = /\/v2\/.+\/manifests\/[^/]+$/;
 
 export const MUTABLE_TTL_MS = 30000;
 export const MAX_CACHE_ENTRIES = 200;
-export const MAX_CACHE_BYTES = 4 * 1024 * 1024;
+const MAX_CACHE_BYTES = 4 * 1024 * 1024;
 
 // The digest a content-addressed URL promises, which the caller must check the
 // body against before caching it; undefined for a mutable URL.

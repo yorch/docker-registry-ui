@@ -30,7 +30,7 @@ export const isTrustedRegistry = (registryUrl, trustedRegistries = []) => {
 // shows now: a held-open request can be answered after the user switched
 // registries. A request is trusted when its origin is the origin of a trusted
 // registry.
-export const isTrustedRequest = (requestUrl, trustedRegistries = []) => {
+const isTrustedRequest = (requestUrl, trustedRegistries = []) => {
   const request = parseHttpUrl(requestUrl);
   return Boolean(request) && trustedRegistries.some((trusted) => parseHttpUrl(trusted)?.origin === request.origin);
 };
@@ -49,7 +49,7 @@ const parseHttpUrl = (value, base) => {
 // origin or the request went to a trusted registry. Following any other realm
 // hands the user's credentials to whoever the registry names, then replays the
 // minted token against that same registry.
-export const resolveRealm = (realm, requestUrl) => {
+const resolveRealm = (realm, requestUrl) => {
   if (typeof realm !== 'string' || !(/^https?:\/\//i.test(realm) || realm.startsWith('/'))) {
     return undefined;
   }
