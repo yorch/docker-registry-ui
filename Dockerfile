@@ -47,7 +47,13 @@ ENV NGINX_LISTEN_PORT '80'
 
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY bin/90-docker-registry-ui.sh /docker-entrypoint.d/90-docker-registry-ui.sh
+# Not in /docker-entrypoint.d: everything there is run at start.
+COPY bin/healthcheck.sh /usr/local/bin/healthcheck.sh
 COPY --from=build /app/dist/ /usr/share/nginx/html/
 COPY favicon.ico /usr/share/nginx/html/
 
 RUN chown -R nginx:nginx /etc/nginx/ /usr/share/nginx/html/ /var/cache/nginx /var/log/nginx
+
+# Probes `/`, which nginx serves itself, so a registry that is down does not make
+# the UI unhealthy. Follows NGINX_LISTEN_PORT; see bin/healthcheck.sh.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/usr/local/bin/healthcheck.sh"]
