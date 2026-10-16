@@ -31,7 +31,7 @@ describe('tag list in a browser', function () {
     // registry, which holds far fewer repositories than any realistic limit.
     // This applies to the whole suite on purpose: startDevServer binds port 8000
     // and refuses to run alongside another instance, so isolating the pagination
-    // test would cost a second full rollup build. Every other test here reaches
+    // test would cost a second full build. Every other test here reaches
     // its tag list by route and never reads the catalogue.
     server = await startDevServer({ CATALOG_ELEMENTS_LIMIT: '2' });
     browser = await chromium.launch();
@@ -261,7 +261,7 @@ describe('tag list in a browser', function () {
   });
 
   it('should show the commit the bundle was built from, linked to its source', async () => {
-    // The dev server builds from this checkout, so rollup's git fallback fills
+    // The dev server builds from this checkout, so the build's git fallback fills
     // the hash in -- the same field the image workflows supply via COMMIT_HASH.
     await page.goto(server.url, { waitUntil: 'load' });
     const link = page.locator('.app-footer .app-footer-commit');

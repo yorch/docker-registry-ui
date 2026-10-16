@@ -19,14 +19,14 @@ FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
-COPY rollup.config.js ./
-COPY rollup/ ./rollup/
-# rollup/mock-registry-plugin.js imports dev/mock-registry/server.js at module
-# load, so rollup cannot start without it -- production builds included.
+COPY vite.config.js ./
+COPY build/ ./build/
+# vite.config.js imports dev/mock-registry/server.js at module load, so Vite
+# cannot start without it -- production builds included.
 COPY dev/ ./dev/
 COPY src/ ./src/
 # The commit this bundle is built from, surfaced in the app footer. `.dockerignore`
-# does not allowlist `.git`, so rollup cannot read it here and the workflows pass
+# does not allowlist `.git`, so the build cannot read it here and the workflows pass
 # it in instead. Declared after the COPYs above so a new SHA does not invalidate
 # the `npm ci` layer. Leaving it unset is fine -- the footer omits the hash.
 ARG COMMIT_HASH

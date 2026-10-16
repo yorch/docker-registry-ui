@@ -23,6 +23,9 @@ Open <http://localhost:8000>. You get a populated interface straight away: with 
 `REGISTRY_URL` set, a mock registry starts alongside the dev server on port 5555
 and serves a catalogue built for developing against.
 
+The dev server used to write a `.serve/` directory. If you have one left over from before the
+move to Vite, delete it with `rm -rf .serve`; it is no longer used.
+
 ### Configuration
 
 Settings come from the environment, using the same variable names as the
@@ -32,7 +35,7 @@ published container, so what you set here is what you would set on the image:
 TAGLIST_PAGE_SIZE=10 DELETE_IMAGES=false npm start
 ```
 
-Defaults live in `rollup/dev-config.js`. There is no need to edit
+Defaults live in `build/dev-config.js`. There is no need to edit
 `src/index.html` — its dev block reads these variables.
 
 Useful ones: `REGISTRY_URL`, `TAGLIST_PAGE_SIZE`, `DELETE_IMAGES`,
@@ -115,13 +118,14 @@ macOS.
 
 ## Build
 
-`npm run build` bundles the app into `dist/` with Rollup and minifies it with Terser.
+`npm run build` bundles the app into `dist/` with Vite 8 (Rolldown); the Oxc minifier and Lightning CSS minify the JS and CSS.
 There is no Babel step and no polyfills: the bundle is ES2020 syntax and needs ES2022
 built-ins (Chrome/Edge 93+, Firefox 92+, Safari 15.4+), so write modern JavaScript and
 do not add `core-js`. The built-in floor comes from `Object.hasOwn` in `@riotjs/route`;
 revisit it if that dependency changes.
-Static assets (fonts, images, `version.json`) are copied by the small local plugin
-`rollup/copy-assets.js`.
+Static assets are emitted by `vite.config.js`: fonts by Vite itself from the stylesheet's `url()`s,
+images (minified by `build/copy-transform.js`), `index.html` and `version.json` by its `static-output`
+plugin. `build.target` pins the browser floor above; without it Vite would raise it.
 
 ## Run the tests
 

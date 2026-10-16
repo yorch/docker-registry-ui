@@ -2,7 +2,7 @@
  * Starts the real dev server for the end-to-end run.
  *
  * `npm start` is used rather than a purpose-built harness so the tests exercise
- * the path a developer actually uses: rollup builds the bundle, substitutes the
+ * the path a developer actually uses: Vite serves the bundle, substitutes the
  * dev configuration into index.html, and boots the mock registry. A separate
  * harness could drift from that quietly.
  */
@@ -36,7 +36,7 @@ export const startDevServer = async (env = {}) => {
     env: { ...process.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
     // Makes the child a process-group leader so the whole group can be signalled
-    // on the way out; killing npm alone leaves rollup holding the ports.
+    // on the way out; killing npm alone leaves vite holding the ports.
     detached: true,
   });
 
@@ -69,8 +69,8 @@ export const startDevServer = async (env = {}) => {
               return resolve();
             }
             child.once('exit', () => resolve());
-            // Kill the process group: `npm start` spawns rollup as a child, and
-            // killing only npm would leave rollup holding ports 8000 and 5555.
+            // Kill the process group: `npm start` spawns vite as a child, and
+            // killing only npm would leave vite holding ports 8000 and 5555.
             try {
               process.kill(-child.pid, 'SIGTERM');
             } catch {

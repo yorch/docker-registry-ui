@@ -13,9 +13,14 @@ const files = [
   'index.html',
 ];
 
-export default function (output) {
+// Checks the directory the build actually wrote to, so `--outDir` is honoured.
+export default function () {
+  let output;
   return {
     name: 'check-output',
+    configResolved: (config) => {
+      output = path.resolve(config.root, config.build.outDir);
+    },
     writeBundle: () => {
       const missingFile = files.find((file) => !fs.existsSync(path.join(output, file)));
       if (missingFile) {

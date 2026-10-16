@@ -2,6 +2,9 @@
 
 Branch: `feat/ui-ux-revamp`
 Status: **implemented** (see [Implementation status](#12-implementation-status))
+
+> Historical: this plan predates the move from Rollup to Vite, so the Rollup references below describe the build as it was then.
+
 Decisions locked in with the author:
 - **Design direction (revised):** modern SaaS shell (sidebar + topbar, clean surfaces, data tables, system font stack) — supersedes the earlier Material 3 direction
 - **Component library (revised):** replace `riot-mui` entirely with a custom, dependency-free component system

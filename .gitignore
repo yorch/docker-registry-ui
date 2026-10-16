@@ -11,9 +11,10 @@ registry-data
 .idea
 _site
 *.orig
-.serve/
 .version.json
 dist
+# Leftover from the Rollup dev server; safe to remove after a release.
+.serve/
 site/_build
 tmp/
 
