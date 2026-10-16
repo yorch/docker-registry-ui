@@ -30,6 +30,9 @@ COPY src/ ./src/
 # it in instead. Declared after the COPYs above so a new SHA does not invalidate
 # the `npm ci` layer. Leaving it unset is fine -- the footer omits the hash.
 ARG COMMIT_HASH
+# Marks a non-release image in the footer (`3.4.0+main.abcdef1`). Release builds
+# leave it unset and show the bare version.
+ARG VERSION_SUFFIX
 RUN npm run build
 
 FROM nginx:1.31-trixie

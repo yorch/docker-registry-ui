@@ -121,6 +121,12 @@ by nginx from a container. Fork of Joxit/docker-registry-ui — see README.
   does not allowlist `.git`, so both Dockerfiles declare `ARG COMMIT_HASH` and all
   four `build-push-action` steps in `main.yml`/`release.yml` pass `${{ github.sha }}`.
   Add the build arg to any new image build, or its footer silently loses the hash.
+- **`VERSION_SUFFIX` marks non-release images in the footer.** `main.yml` passes
+  `VERSION_SUFFIX=main`, so the `:main` images show `3.4.0+main.abcdef1` (package
+  version, suffix, short commit) instead of the last release number for newer code.
+  `release.yml` leaves it unset and shows the bare version. `version.json`'s `latest`
+  stays the package version either way: the update check compares that one with
+  GitHub's latest release.
 - **`.version.json` is consumed as a named ESM import**, so every key it can ever
   have must always be written. A key omitted because its value was undefined is a
   build-time "missing export" error, not an `undefined` at runtime. `VERSION_FILE`

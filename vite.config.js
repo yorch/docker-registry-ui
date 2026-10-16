@@ -17,12 +17,24 @@ const versionFile = path.resolve(process.env.VERSION_FILE || '.version.json');
 
 const version = JSON.parse(fs.readFileSync('./package.json', 'utf-8')).version;
 
-const getVersion = (version, serve) => {
+/*
+ * The version the footer shows. A tagged release is the bare package version.
+ * VERSION_SUFFIX marks every other image (the main-branch one passes `main`), so
+ * "3.4.0" is not shown for code that is newer than the 3.4.0 release:
+ * `3.4.0+main.abcdef1`, which is semver build metadata. Anything outside
+ * [0-9A-Za-z.-] becomes `-`. `latest` (written next to it) stays the package
+ * version because the update check compares that one with GitHub's latest release.
+ */
+const getVersion = (version, serve, commit) => {
   const parts = version.split('.').map((e) => parseInt(e, 10));
   if (serve || process.env.DEVELOPMENT_BUILD) {
     parts[1]++;
     parts[2] = 0;
     return parts.join('.') + (serve ? '-dev' : `-${process.env.DEVELOPMENT_BUILD.slice(0, 10)}`);
+  }
+  const suffix = (process.env.VERSION_SUFFIX || '').trim().replace(/[^0-9A-Za-z.-]/g, '-');
+  if (suffix) {
+    return `${version}+${suffix}${commit ? `.${commit.slice(0, 7)}` : ''}`;
   }
   return version;
 };
@@ -126,9 +138,10 @@ const devServer = ({ config, mock }) => ({
 
 export default defineConfig(({ command }) => {
   const serve = command === 'serve';
+  const commit = getCommitHash();
   fs.writeFileSync(
     versionFile,
-    JSON.stringify({ version: getVersion(version, serve), latest: version, commit: getCommitHash() }),
+    JSON.stringify({ version: getVersion(version, serve, commit), latest: version, commit }),
   );
   // Setting REGISTRY_URL says you have a registry of your own, so the mock stays
   // out of the way. Leaving it unset gets you one, which is what makes a bare
