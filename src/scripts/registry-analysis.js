@@ -24,7 +24,12 @@ const timeOf = (record) => reliableTime(record.created) ?? Number.MIN_SAFE_INTEG
 // cosign stores signatures, attestations and SBOMs as tags named after the
 // digest they describe: sha256-<hex>.sig, .att, .sbom. The OCI 1.1 referrers
 // fallback uses the bare sha256-<hex> for an index of signatures/SBOMs.
-const COSIGN_TAG_REGEX = /^sha256-[a-f0-9]{64}(\.(sig|att|sbom))?$/;
+const COSIGN_TAG_REGEX = /^sha256-([a-f0-9]{64})(\.(sig|att|sbom))?$/;
+// The digest a cosign/referrers tag is about, from its name.
+const cosignSubject = (tag) => {
+  const match = COSIGN_TAG_REGEX.exec(tag);
+  return match && `sha256:${match[1]}`;
+};
 
 const byNewest = (left, right) => timeOf(right) - timeOf(left);
 
@@ -78,10 +83,17 @@ export const summarizeRegistry = (records, repositoryNames = [], unreadableRepos
  */
 export const planRetention = (
   records,
-  { olderThanDays = 90, keepNewest = 5, protectedPatterns = ['latest', 'stable'], deleteCosignTags = false } = {},
+  {
+    olderThanDays = 90,
+    keepNewest = 5,
+    protectedPatterns = ['latest', 'stable'],
+    deleteCosignTags: deleteCosignOption = false,
+  } = {},
   now = new Date(),
   unverifiedRepositories = [],
 ) => {
+  // Strictly true: a string such as 'false' must not switch this on.
+  const deleteCosignTags = deleteCosignOption === true;
   const unverified = new Set(unverifiedRepositories);
   // A NaN here made every comparison below false, so nothing counted as recent
   // or kept and everything became a candidate. Refuse the whole plan instead.
@@ -97,16 +109,19 @@ export const planRetention = (
       skipped.push({ repository: record.repository, tags: [record.tag], reason: 'Invalid retention policy' });
       return;
     }
-    if (!deleteCosignTags && COSIGN_TAG_REGEX.test(record.tag)) {
-      // Not ranked, but still kept in the repository's records below: an index
-      // under a cosign-shaped name still references children that stay protected.
+    if (COSIGN_TAG_REGEX.test(record.tag)) {
+      // Never ranked or aged (a real signature image has no usable build date),
+      // but still kept in the repository's records below: an index under a
+      // cosign-shaped name still references children that stay protected.
       cosignRecords.add(record);
-      skipped.push({
-        repository: record.repository,
-        digest: record.digest,
-        tags: [record.tag],
-        reason: `Cosign signature/attestation tag: ${record.tag}`,
-      });
+      if (!deleteCosignTags) {
+        skipped.push({
+          repository: record.repository,
+          digest: record.digest,
+          tags: [record.tag],
+          reason: `Cosign signature/attestation tag: ${record.tag}`,
+        });
+      }
     }
     const items = byRepository.get(record.repository) || [];
     items.push(record);
@@ -207,6 +222,7 @@ export const planRetention = (
      * `references` is the full descendant set, attestations and nested indexes
      * included; `platforms` is unioned in for records that only carry that.
      */
+    const accepted = [];
     verdicts.forEach((candidate) => {
       const parent = referenced.get(candidate.digest);
       if (unverified.has(repository)) {
@@ -216,7 +232,7 @@ export const planRetention = (
           tags: candidate.tags,
           reason: 'Repository not fully inspected',
         });
-      } else if (parent === undefined) candidates.push(candidate);
+      } else if (parent === undefined) accepted.push(candidate);
       else
         skipped.push({
           repository,
@@ -225,6 +241,58 @@ export const planRetention = (
           reason: `Referenced by index ${parent}`,
         });
     });
+
+    /*
+     * Cosign tags, when the policy asks for them, only ever ride along with the
+     * image they sign: a companion of that image's candidate row, never a
+     * candidate of its own. Its digest has to carry nothing but cosign tags (a
+     * real tag on it keeps the whole digest, see cosignDigests above), no tag
+     * matching a protected pattern, no index referencing it, and its subject
+     * must itself be a candidate in this plan. Nothing is inferred from a
+     * missing subject: the tag list cannot tell a deleted image from an untagged
+     * one, an index child, or one signed into another repository.
+     */
+    if (deleteCosignTags) {
+      const cosignByDigest = new Map();
+      repositoryRecords.forEach((record) => {
+        if (!cosignRecords.has(record)) return;
+        if (!record.digest) {
+          skipped.push({ repository, tags: [record.tag], reason: 'Digest unavailable' });
+          return;
+        }
+        cosignByDigest.set(record.digest, [...(cosignByDigest.get(record.digest) || []), record]);
+      });
+      const bySubject = new Map(accepted.map((candidate) => [candidate.digest, candidate]));
+      cosignByDigest.forEach((records, digest) => {
+        const tags = records.map((record) => record.tag);
+        const carriesRealTag = repositoryRecords.some(
+          (record) => record.digest === digest && !cosignRecords.has(record),
+        );
+        const protectedTag = records.find((record) => patterns.some((pattern) => pattern.test(record.tag)));
+        const parent = referenced.get(digest);
+        const subjects = records.map((record) => cosignSubject(record.tag));
+        const reason = unverified.has(repository)
+          ? 'Repository not fully inspected'
+          : carriesRealTag
+            ? 'Shares a digest with a tag that is not being deleted'
+            : protectedTag
+              ? `Protected tag: ${protectedTag.tag}`
+              : parent !== undefined
+                ? `Referenced by index ${parent}`
+                : new Set(subjects).size > 1
+                  ? 'Shared by the signatures of more than one image'
+                  : subjects.some((subject) => subject === digest || !bySubject.has(subject))
+                    ? 'Signature of an image that is not being deleted in this plan'
+                    : undefined;
+        if (reason) {
+          skipped.push({ repository, digest, tags, reason });
+          return;
+        }
+        const owner = bySubject.get(subjects[0]);
+        owner.companions = [...(owner.companions || []), { digest, tags }];
+      });
+    }
+    candidates.push(...accepted);
   });
   return { candidates, skipped, cutoff: new Date(cutoff).toISOString() };
 };
