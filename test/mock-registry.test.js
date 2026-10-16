@@ -165,8 +165,8 @@ describe('mock registry', () => {
   // has to be right or the browser hides the response.
   describe('CORS', () => {
     it('should allow the request origin', async () => {
-      const response = await get('/v2/_catalog?n=10');
-      assert.ok(response.headers.get('Access-Control-Allow-Origin'));
+      const response = await get('/v2/_catalog?n=10', { Origin: 'http://localhost:8000' });
+      assert.equal(response.headers.get('Access-Control-Allow-Origin'), 'http://localhost:8000');
     });
 
     it('should expose the content digest header', async () => {
@@ -242,5 +242,66 @@ describe('mock registry', () => {
       const body = await (await fetch(`${custom.url}/v2/nginx/tags/list?n=1`)).json();
       assert.deepEqual(body.tags, ['1.26']);
     });
+  });
+});
+
+describe('mock registry exposure', () => {
+  let registry;
+  afterEach(async () => {
+    await registry?.close();
+    delete process.env.MOCK_REGISTRY_HOST;
+    delete process.env.MOCK_REGISTRY_ORIGINS;
+  });
+
+  const preflight = (origin) =>
+    fetch(`${registry.url}/v2/_catalog`, { method: 'OPTIONS', headers: { Origin: origin } });
+
+  it('should bind to loopback by default', async () => {
+    registry = await createMockRegistry({ port: 0 });
+    assert.equal(registry.host, '127.0.0.1');
+  });
+
+  it('should honour the host option and MOCK_REGISTRY_HOST', async () => {
+    registry = await createMockRegistry({ port: 0, host: '::1' });
+    assert.equal(registry.host, '::1');
+    await registry.close();
+    process.env.MOCK_REGISTRY_HOST = 'localhost';
+    registry = await createMockRegistry({ port: 0 });
+    assert.equal(registry.host, 'localhost');
+  });
+
+  it('should allow the dev server origin and nothing else by default', async () => {
+    registry = await createMockRegistry({ port: 0 });
+    const allowed = await preflight('http://localhost:8000');
+    assert.equal(allowed.headers.get('Access-Control-Allow-Origin'), 'http://localhost:8000');
+    assert.match(allowed.headers.get('Vary'), /Origin/);
+    const other = await preflight('https://evil.example');
+    assert.equal(other.headers.get('Access-Control-Allow-Origin'), null);
+    const get = await fetch(`${registry.url}/v2/_catalog`, { headers: { Origin: 'https://evil.example' } });
+    assert.equal(get.headers.get('Access-Control-Allow-Origin'), null);
+  });
+
+  it('should never answer with a wildcard unless asked to', async () => {
+    registry = await createMockRegistry({ port: 0 });
+    const response = await fetch(`${registry.url}/v2/_catalog`);
+    assert.notEqual(response.headers.get('Access-Control-Allow-Origin'), '*');
+  });
+
+  it('should allow the origins given by option or MOCK_REGISTRY_ORIGINS', async () => {
+    registry = await createMockRegistry({ port: 0, allowedOrigins: ['http://localhost:9000'] });
+    assert.equal(
+      (await preflight('http://localhost:9000')).headers.get('Access-Control-Allow-Origin'),
+      'http://localhost:9000',
+    );
+    assert.equal((await preflight('http://localhost:8000')).headers.get('Access-Control-Allow-Origin'), null);
+    await registry.close();
+    process.env.MOCK_REGISTRY_ORIGINS = 'http://a.test:1, http://b.test:2';
+    registry = await createMockRegistry({ port: 0 });
+    assert.equal((await preflight('http://b.test:2')).headers.get('Access-Control-Allow-Origin'), 'http://b.test:2');
+  });
+
+  it('should allow any origin when the list is *', async () => {
+    registry = await createMockRegistry({ port: 0, allowedOrigins: ['*'] });
+    assert.equal((await preflight('https://anything.example')).headers.get('Access-Control-Allow-Origin'), '*');
   });
 });

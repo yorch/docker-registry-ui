@@ -72,7 +72,15 @@ Two knobs:
 ```bash
 MOCK_LATENCY_MS=300 npm start     # delay every response, to open up race windows
 MOCK_REGISTRY_PORT=6000 npm start # if 5555 is taken
+MOCK_REGISTRY_HOST=0.0.0.0 npm start  # bind another interface (default 127.0.0.1)
+MOCK_REGISTRY_ORIGINS=http://localhost:9000 npm start # origins allowed by CORS
 ```
+
+The mock accepts `DELETE`, so by default it binds to loopback only and answers
+CORS only for the dev server (`http://localhost:8000`, `http://127.0.0.1:8000`),
+which is also the origin the e2e run uses. `MOCK_REGISTRY_ORIGINS` takes a
+comma-separated list; `*` allows any page, so only use it on a loopback bind.
+`createMockRegistry` takes the same settings as `host` and `allowedOrigins`.
 
 Latency is worth reaching for: several bugs in this UI only appear while a
 request is still in flight, and are invisible against an instant local backend.

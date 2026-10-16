@@ -108,8 +108,20 @@ const buildStore = (fixtures) => {
   return repositories;
 };
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
+// The origins a browser may call the mock from: the dev server, and the e2e run,
+// which drives that same dev server (test/e2e/dev-server.js). The mock accepts
+// DELETE, so it does not answer to arbitrary web pages. `*` opts back in to that.
+export const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000'];
+export const DEFAULT_MOCK_HOST = '127.0.0.1';
+
+const originsFromEnv = () =>
+  process.env.MOCK_REGISTRY_ORIGINS
+    ? process.env.MOCK_REGISTRY_ORIGINS.split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean)
+    : DEFAULT_ALLOWED_ORIGINS;
+
+const STATIC_CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'HEAD, GET, OPTIONS, DELETE',
   'Access-Control-Allow-Headers': 'Authorization, Accept, Cache-Control',
   // Without this the browser hides the header and the UI silently falls back to
@@ -118,9 +130,21 @@ const CORS_HEADERS = {
   'Access-Control-Max-Age': '1728000',
 };
 
+// No Access-Control-Allow-Origin at all for an origin that is not allowed: the
+// browser then refuses the response, which is the point.
+const corsHeaders = (origin, allowedOrigins) => {
+  const headers = { ...STATIC_CORS_HEADERS, Vary: 'Origin' };
+  if (allowedOrigins.includes('*')) {
+    headers['Access-Control-Allow-Origin'] = '*';
+  } else if (origin && allowedOrigins.includes(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
+  }
+  return headers;
+};
+
 const send = (res, status, body, headers = {}) => {
   const text = typeof body === 'string' ? body : JSON.stringify(body);
-  res.writeHead(status, { 'Content-Type': 'application/json', ...CORS_HEADERS, ...headers });
+  res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
   res.end(text);
 };
 
@@ -147,6 +171,8 @@ export const DEFAULT_MOCK_PORT = 5555;
 
 export const createMockRegistry = async ({
   port = DEFAULT_MOCK_PORT,
+  host = process.env.MOCK_REGISTRY_HOST || DEFAULT_MOCK_HOST,
+  allowedOrigins = originsFromEnv(),
   fixtures = defaultFixtures,
   latency = 0,
   allowDelete = true,
@@ -158,6 +184,9 @@ export const createMockRegistry = async ({
   const requests = new Map();
 
   const server = createServer(async (req, res) => {
+    Object.entries(corsHeaders(req.headers.origin, allowedOrigins)).forEach(([name, value]) => {
+      res.setHeader(name, value);
+    });
     const url = new URL(req.url, 'http://localhost');
     const path = decodeURIComponent(url.pathname);
     requests.set(path, (requests.get(path) || 0) + 1);
@@ -165,7 +194,7 @@ export const createMockRegistry = async ({
     requests.set(methodKey, (requests.get(methodKey) || 0) + 1);
 
     if (req.method === 'OPTIONS') {
-      res.writeHead(204, CORS_HEADERS);
+      res.writeHead(204);
       return res.end();
     }
 
@@ -275,7 +304,7 @@ export const createMockRegistry = async ({
   // the caller waits forever and the failure escapes as an uncaught exception.
   await new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port, () => {
+    server.listen(port, host, () => {
       server.removeListener('error', reject);
       resolve();
     });
@@ -283,7 +312,10 @@ export const createMockRegistry = async ({
   const address = server.address();
 
   return {
+    // `localhost` rather than the bound address: it is the origin the dev UI is
+    // configured with (REGISTRY_URL), and a non-loopback bind is reached by name.
     url: `http://localhost:${address.port}`,
+    host,
     port: address.port,
     // Pass a method to count only that verb: a cross-origin DELETE is
     // preceded by an OPTIONS preflight on the same path.
