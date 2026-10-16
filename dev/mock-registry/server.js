@@ -108,10 +108,12 @@ const buildStore = (fixtures) => {
   return repositories;
 };
 
-// The origins a browser may call the mock from: the dev server, and the e2e run,
-// which drives that same dev server (test/e2e/dev-server.js). The mock accepts
-// DELETE, so it does not answer to arbitrary web pages. `*` opts back in to that.
-export const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000'];
+// The origins a browser may call the mock from: the dev server, which the e2e run
+// also drives (test/e2e/dev-server.js), and the jsdom window the unit tests mount
+// components in (test/setup/register.js), whose origin is http://localhost. The
+// mock accepts DELETE, so it does not answer to arbitrary web pages. `*` opts back
+// in to that.
+export const DEFAULT_ALLOWED_ORIGINS = ['http://localhost', 'http://localhost:8000', 'http://127.0.0.1:8000'];
 export const DEFAULT_MOCK_HOST = '127.0.0.1';
 
 const originsFromEnv = () =>
@@ -131,12 +133,17 @@ const STATIC_CORS_HEADERS = {
 };
 
 // No Access-Control-Allow-Origin at all for an origin that is not allowed: the
-// browser then refuses the response, which is the point.
+// browser then refuses the response, which is the point. A request without an
+// Origin header did not come from a browser page; it is answered for the first
+// allowed origin, which keeps a header-dropping test proxy working (a browser
+// always sends Origin cross-origin, so this lets nothing in).
 const corsHeaders = (origin, allowedOrigins) => {
   const headers = { ...STATIC_CORS_HEADERS, Vary: 'Origin' };
   if (allowedOrigins.includes('*')) {
     headers['Access-Control-Allow-Origin'] = '*';
-  } else if (origin && allowedOrigins.includes(origin)) {
+  } else if (!origin && allowedOrigins.length) {
+    headers['Access-Control-Allow-Origin'] = allowedOrigins[0];
+  } else if (allowedOrigins.includes(origin)) {
     headers['Access-Control-Allow-Origin'] = origin;
   }
   return headers;

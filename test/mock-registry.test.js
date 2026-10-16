@@ -284,7 +284,8 @@ describe('mock registry exposure', () => {
   it('should never answer with a wildcard unless asked to', async () => {
     registry = await createMockRegistry({ port: 0 });
     const response = await fetch(`${registry.url}/v2/_catalog`);
-    assert.notEqual(response.headers.get('Access-Control-Allow-Origin'), '*');
+    // No Origin header (not a browser page): answered for the first allowed origin.
+    assert.equal(response.headers.get('Access-Control-Allow-Origin'), 'http://localhost');
   });
 
   it('should allow the origins given by option or MOCK_REGISTRY_ORIGINS', async () => {

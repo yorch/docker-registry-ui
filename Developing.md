@@ -78,7 +78,8 @@ MOCK_REGISTRY_ORIGINS=http://localhost:9000 npm start # origins allowed by CORS
 
 The mock accepts `DELETE`, so by default it binds to loopback only and answers
 CORS only for the dev server (`http://localhost:8000`, `http://127.0.0.1:8000`),
-which is also the origin the e2e run uses. `MOCK_REGISTRY_ORIGINS` takes a
+which is also the origin the e2e run uses, and for the unit tests' jsdom window
+(`http://localhost`). `MOCK_REGISTRY_ORIGINS` takes a
 comma-separated list; `*` allows any page, so only use it on a loopback bind.
 `createMockRegistry` takes the same settings as `host` and `allowedOrigins`.
 
