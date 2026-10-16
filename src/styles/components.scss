@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2016-2023 Jones Magloire @Joxit
  *
- * Component styles: buttons, fields, checkbox, switch, dialog, snackbar,
+ * Component styles: buttons, fields, checkbox, dialog, snackbar,
  * tabs, badges, table, list group, spinner, skeleton and empty states.
  */
 
@@ -213,66 +213,6 @@
   background-color: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
-}
-
-/* ------------------------------------------------------------------ *
- * Switch                                                              *
- * ------------------------------------------------------------------ */
-.switch {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.switch input {
-  position: absolute;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  cursor: pointer;
-}
-
-.switch .switch-track {
-  width: 34px;
-  height: 20px;
-  border-radius: var(--radius-full);
-  background-color: var(--border-strong);
-  position: relative;
-  transition: background-color var(--dur-normal) var(--ease-out);
-}
-
-.switch .switch-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: var(--radius-full);
-  background-color: var(--surface);
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform var(--dur-normal) var(--ease-out);
-}
-
-.switch .switch-thumb .material-icons {
-  font-size: 12px;
-}
-
-.switch input:checked + .switch-track {
-  background-color: var(--accent);
-}
-
-.switch input:checked + .switch-track .switch-thumb {
-  transform: translateX(14px);
-}
-
-.switch input:focus-visible + .switch-track {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 /* ------------------------------------------------------------------ *

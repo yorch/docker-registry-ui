@@ -3,6 +3,8 @@
 **Date:** 2026-08-06
 **Status:** Approved design, pending implementation plan
 
+> Historical: this spec predates the move from Rollup to Vite, so the `rollup/` and `rollup.config.js` references below describe the build as it was then.
+
 ## Problem
 
 This repo is a fork of [`Joxit/docker-registry-ui`](https://github.com/Joxit/docker-registry-ui) with one

@@ -90,7 +90,7 @@ Dark:
 | surface-container-high | `#27272c` | | surface-container-highest | `#323237` |
 
 ### 3.3 Backward-compatible theme wiring
-`src/scripts/theme.js` keeps its current contract (light/dark/auto, `localStorage` key `registryUiTheme`, `prefers-color-scheme`, `THEME_*` env overrides) but now emits the full M3 token set. Approach:
+`src/scripts/theme.js` keeps its current contract (light/dark/auto, `localStorage` key `registryUiTheme` (since replaced by `registryUiThemeChoice`), `prefers-color-scheme`, `THEME_*` env overrides) but now emits the full M3 token set. Approach:
 - Add a **legacy→M3 alias layer**: existing consumers still read `--background`, `--primary-text`, `--accent-text`, `--hover-background`, header/footer vars, so keep emitting them as aliases of the M3 roles they map to:
   - `--primary-text` → `--m3-on-surface`
   - `--neutral-text` → `--m3-on-surface-variant`

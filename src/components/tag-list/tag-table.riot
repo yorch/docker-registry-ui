@@ -140,6 +140,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   </table>
 
   <script>
+    import { ACTION_CHECK_TO_DELETE, ACTION_UNCHECK_TO_DELETE, ACTION_DELETE_IMAGE } from '../../scripts/tag-actions';
     import { getPage } from '../../scripts/utils';
     import ImageDate from './image-date.riot';
     import ImageSize from './image-size.riot';
@@ -152,9 +153,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     import { matchSearch } from '../search-bar.riot';
     import ConfirmDeleteImage from '../dialogs/confirm-delete-image.riot';
     import ImageDetails from '../dialogs/image-details.riot';
-    const ACTION_CHECK_TO_DELETE = 'CHECK';
-    const ACTION_UNCHECK_TO_DELETE = 'UNCHECK';
-    const ACTION_DELETE_IMAGE = 'DELETE';
 
     export default {
       components: {
@@ -336,7 +334,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
       },
       matchSearch,
     };
-    export { ACTION_CHECK_TO_DELETE, ACTION_UNCHECK_TO_DELETE, ACTION_DELETE_IMAGE };
   </script>
   <style>
     :host {
