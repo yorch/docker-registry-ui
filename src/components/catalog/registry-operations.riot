@@ -113,6 +113,18 @@
               <span>Protected tag patterns</span>
               <input name="protectedPatterns" type="text" value="{ state.policy.protectedPatterns }" placeholder="latest, stable, release-*" />
             </label>
+            <label class="cosign-field">
+              <input
+                name="deleteCosignTags"
+                type="checkbox"
+                checked="{ state.policy.deleteCosignTags }"
+                onchange="{ cosignToggled }"
+              />
+              <span>
+                Also delete the signature and attestation tags of the images being deleted
+                <small>Off by default: <code>.sig</code>, <code>.att</code>, <code>.sbom</code> and bare <code>sha256-&lt;digest&gt;</code> tags are kept. When on, they are listed under the image they sign and are deleted only after that image was. Signatures of images that are kept, untagged, or in other repositories are never touched.</small>
+              </span>
+            </label>
           </div>
         </form>
 
@@ -136,6 +148,10 @@
             </div>
           </div>
 
+          <p class="digest-only-note">
+            Images referenced only by digest (for example an untagged multi-architecture index) cannot be detected; if you pull by digest, check before deleting.
+          </p>
+
           <p if="{ !props.isImageRemoveActivated }" class="delete-disabled">
             Deletion is disabled by configuration. Set <code>DELETE_IMAGES=true</code> to enable execution; previews remain available.
           </p>
@@ -153,7 +169,10 @@
                     ></app-checkbox>
                   </td>
                   <td data-label="Repository"><code>{ candidate.repository }</code></td>
-                  <td data-label="Tags">{ candidate.tags.join(', ') }</td>
+                  <td data-label="Tags">
+                    { candidate.tags.join(', ') }
+                    <span if="{ companionTags(candidate).length }" class="companion-tags">+ signature: { companionTags(candidate).join(', ') }</span>
+                  </td>
                   <td data-label="Newest date">{ formatDate(candidate.created) }</td>
                   <td data-label="Size">{ bytesToSize(candidate.size) }</td>
                 </tr>
@@ -178,10 +197,13 @@
     <div class="confirm-copy">
       <span class="danger-icon"><i class="material-icons" aria-hidden="true">delete_forever</i></span>
       <p>
-        Delete <strong>{ selectedCandidates().length } manifests</strong> and all
-        <strong>{ selectedTagCount() } attached tags</strong>?
+        Delete <strong>{ selectedManifestCount() } manifests</strong>{ companionNote() }
+        and <strong>all { selectedTagCount() } attached tags</strong>?
       </p>
       <p>This cannot be undone from the UI. The registry may retain blobs until an administrator runs server-side garbage collection.</p>
+      <p>
+        Images referenced only by digest (for example an untagged multi-architecture index) cannot be detected; if you pull by digest, check before deleting.
+      </p>
     </div>
     <div slot="footer" class="confirm-actions">
       <button class="btn" onclick="{ closeConfirm }" disabled="{ state.deleting }" type="button">Cancel</button>
@@ -213,7 +235,7 @@
         processedTags: 0,
         totalTags: 0,
         selected: new Set(),
-        policy: { olderThanDays: 90, keepNewest: 5, protectedPatterns: 'latest, stable' },
+        policy: { olderThanDays: 90, keepNewest: 5, protectedPatterns: 'latest, stable', deleteCosignTags: false },
       },
       onBeforeMount(props) {
         this.registryUrl = props.registryUrl;
@@ -369,6 +391,7 @@
             .split(',')
             .map((value) => value.trim())
             .filter(Boolean),
+          deleteCosignTags: form.get('deleteCosignTags') === 'on',
         };
         // Any tag that could not be inspected, or a repository whose tag list
         // failed, makes that repository unsafe to plan: the missing record may
@@ -377,6 +400,9 @@
         const plan = {
           ...planRetention(this.state.records, policy, undefined, unverified),
           registryUrl: this.scanRegistryUrl,
+          // Part of the plan's identity: a plan built with cosign tags offered
+          // must not outlive the box being unticked.
+          deleteCosignTags: policy.deleteCosignTags,
         };
         // A preview opens with nothing selected. Pre-checking every candidate
         // would put a one-click path to bulk deletion behind a screen whose
@@ -387,6 +413,18 @@
           plan,
           selected: new Set(),
         });
+      },
+      // Changing what may be offered invalidates the plan on screen, and the
+      // selection made from it.
+      cosignToggled(event) {
+        this.update({
+          policy: { ...this.state.policy, deleteCosignTags: event.target.checked },
+          plan: undefined,
+          selected: new Set(),
+        });
+      },
+      companionTags(candidate) {
+        return (candidate.companions || []).flatMap((companion) => companion.tags);
       },
       candidateKey(candidate) {
         return `${candidate.repository}:${candidate.digest}`;
@@ -409,10 +447,25 @@
         );
       },
       candidateTagCount() {
-        return (this.state.plan?.candidates || []).reduce((total, candidate) => total + candidate.tags.length, 0);
+        return (this.state.plan?.candidates || []).reduce((total, candidate) => total + candidate.tags.length + this.companionTags(candidate).length, 0);
+      },
+      selectedCompanionCount() {
+        return this.selectedCandidates().reduce((total, candidate) => total + (candidate.companions || []).length, 0);
+      },
+      companionNote() {
+        const companions = this.selectedCompanionCount();
+        return companions
+          ? ` (${this.selectedCandidates().length} images + ${companions} signature or attestation)`
+          : '';
+      },
+      selectedManifestCount() {
+        return this.selectedCandidates().length + this.selectedCompanionCount();
       },
       selectedTagCount() {
-        return this.selectedCandidates().reduce((total, candidate) => total + candidate.tags.length, 0);
+        return this.selectedCandidates().reduce(
+          (total, candidate) => total + candidate.tags.length + this.companionTags(candidate).length,
+          0,
+        );
       },
       candidateSize() {
         return (this.state.plan?.candidates || []).reduce((total, candidate) => total + candidate.size, 0);
@@ -429,6 +482,12 @@
         if (!candidates.length || !this.props.isImageRemoveActivated) return;
         if (this.state.plan?.registryUrl !== this.props.registryUrl) {
           const message = 'The registry changed since this plan was created; re-analyze before deleting';
+          this.update({ confirming: false, deleteFailures: [message] });
+          this.props.onNotify(message, true);
+          return;
+        }
+        if ((this.state.plan.deleteCosignTags === true) !== (this.state.policy.deleteCosignTags === true)) {
+          const message = 'The cosign tag option changed since this plan was created; preview again before deleting';
           this.update({ confirming: false, deleteFailures: [message] });
           this.props.onNotify(message, true);
           return;
@@ -466,6 +525,11 @@
             }
             return snapshot;
           };
+          let failedImages = 0;
+          // Every digest deleted in this run, so a companion shared by two rows
+          // (or any digest) is never deleted twice nor reported as kept.
+          const removed = new Set();
+          let manifestsDeleted = 0;
           for (const candidate of candidates) {
             try {
               const snapshot = snapshotFor(candidate.repository);
@@ -478,11 +542,35 @@
               // conditional (compare-and-delete) form to close it.
               await client.deleteManifest(candidate.repository, candidate.digest);
               snapshot.deletes++;
+              removed.add(candidate.digest);
+              manifestsDeleted++;
             } catch (error) {
+              failedImages++;
               failures.push(`${candidate.repository}: ${error.message || error}`);
+              // Never leave a signature behind for an image that is still there.
+              continue;
+            }
+            // Companions (signature and attestation tags) go only after their
+            // image did, each with the same fresh check as any manifest.
+            for (const companion of candidate.companions || []) {
+              if (removed.has(companion.digest)) continue;
+              try {
+                const snapshot = snapshotFor(candidate.repository);
+                this.assertPreviewStillHolds(await snapshot.check, { ...companion, repository: candidate.repository });
+                await client.deleteManifest(candidate.repository, companion.digest);
+                snapshot.deletes++;
+                removed.add(companion.digest);
+                manifestsDeleted++;
+              } catch (error) {
+                if (error.status === 404 && removed.has(companion.digest)) continue;
+                failures.push(
+                  `${candidate.repository}: ${companion.tags.join(', ')} was kept: ${error.message || error}`,
+                );
+              }
             }
           }
-          const deleted = candidates.length - failures.length;
+          const deleted = candidates.length - failedImages;
+          const totalManifests = this.selectedManifestCount();
           invalidateRegistry(planUrl);
           // A run that deleted nothing left the registry exactly as the inventory
           // describes it, so the plan and summary are still accurate. Clearing
@@ -498,10 +586,10 @@
             // The reasons are the actionable part -- "expose Docker-Content-Digest",
             // "tags changed since the preview" -- so lead with one and render the
             // rest above. A bare count tells the user nothing they can act on.
-            this.props.onNotify(`${deleted} of ${candidates.length} manifests deleted. ${failures[0]}`, true);
+            this.props.onNotify(`${manifestsDeleted} of ${totalManifests} manifests deleted. ${failures[0]}`, true);
           } else {
             this.props.onNotify(
-              `${candidates.length} manifests deleted. Run registry garbage collection server-side to reclaim blobs.`,
+              `${manifestsDeleted} manifests deleted. Run registry garbage collection server-side to reclaim blobs.`,
             );
           }
           if (deleted > 0) this.props.onRegistryChanged?.();
@@ -744,6 +832,36 @@
       background: var(--surface);
       color: var(--text-primary);
       font: inherit;
+    }
+
+    :host .policy-grid .cosign-field {
+      grid-column: 1 / -1;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: var(--space-2);
+    }
+
+    :host .policy-grid .cosign-field input {
+      min-height: 0;
+      margin-top: 3px;
+      padding: 0;
+    }
+
+    :host .policy-grid .cosign-field small {
+      display: block;
+      color: var(--text-secondary);
+    }
+
+    :host .companion-tags {
+      display: block;
+      color: var(--text-secondary);
+      font-size: var(--fs-sm);
+    }
+
+    :host .digest-only-note {
+      color: var(--text-secondary);
+      font-size: var(--fs-md);
+      margin: var(--space-3) 0 0;
     }
 
     :host .policy-grid input:focus-visible {

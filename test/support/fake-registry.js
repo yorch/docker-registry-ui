@@ -13,7 +13,7 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Authorization, Accept, Cache-Control',
   'Access-Control-Expose-Headers': 'Docker-Content-Digest, Link',
 };
-export const createFake = async ({ pageSize, failBlobs = new Set() } = {}) => {
+export const createFake = async ({ pageSize, failBlobs = new Set(), delayMs = 0 } = {}) => {
   const manifests = new Map(); // digest -> {body, mediaType}
   const blobs = new Map();
   const tags = new Map(); // tag -> digest
@@ -73,8 +73,13 @@ export const createFake = async ({ pageSize, failBlobs = new Set() } = {}) => {
       return res.end();
     }
     const send = (s, b, h = {}) => {
-      res.writeHead(s, { 'Content-Type': 'application/json', ...CORS, ...h });
-      res.end(typeof b === 'string' ? b : JSON.stringify(b));
+      const respond = () => {
+        res.writeHead(s, { 'Content-Type': 'application/json', ...CORS, ...h });
+        res.end(typeof b === 'string' ? b : JSON.stringify(b));
+      };
+      // Slow manifest reads, so a test can observe progress while they run.
+      if (delayMs && p.includes('/manifests/') && req.method !== 'DELETE') setTimeout(respond, delayMs);
+      else respond();
     };
     if (p === '/v2/_catalog') return send(200, { repositories: ['app'] });
     if (p === '/v2/app/tags/list') {

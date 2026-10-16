@@ -81,14 +81,17 @@ describe('retention date trust', () => {
     );
   });
 
-  it('should delete cosign tags when the operator opts in', () => {
+  it('should delete cosign tags with their image when the operator opts in, and not alone', () => {
     const hex = 'c'.repeat(64);
-    const plan = planRetention(
-      [record(`sha256-${hex}.sig`, '2020-01-01')],
-      { ...policy, keepNewest: 0, deleteCosignTags: true },
+    const options = { ...policy, keepNewest: 0, deleteCosignTags: true };
+    const withImage = planRetention(
+      [record('v1', '2020-01-01', `sha256:${hex}`), record(`sha256-${hex}.sig`, '2020-01-01')],
+      options,
       NOW,
     );
-    assert.equal(plan.candidates.length, 1);
+    assert.equal(withImage.candidates.length, 1);
+    assert.deepEqual(withImage.candidates[0].companions[0].tags, [`sha256-${hex}.sig`]);
+    assert.equal(planRetention([record(`sha256-${hex}.sig`, '2020-01-01')], options, NOW).candidates.length, 0);
   });
 
   it('should count distinct digests, not tags, for keepNewest', () => {
